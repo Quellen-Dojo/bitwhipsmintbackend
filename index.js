@@ -93,6 +93,8 @@ app.post('/addtowhitelist', async (req, res) => {
                 } catch (e) {
                     res.status(500).send();
                 }
+            } else {
+                res.status(409).send();
             }
         }
     } else {

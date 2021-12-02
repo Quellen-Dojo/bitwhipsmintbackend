@@ -60,14 +60,18 @@ app.get('/ip',async (req,res) => {
 
 app.get('/checkwhitelist', async (req, res) => {
     const { wallet, key } = req.query;
-    if (checkingWhitelist && key == currentKey) {
-        if (await walletInWhitelist(wallet)) {
-            res.status(200).send();
+    if (key == currentKey) {
+        if (checkingWhitelist) {
+            if (await walletInWhitelist(wallet)) {
+                res.status(200).send();
+            } else {
+                res.status(404).send();
+            }
         } else {
-            res.status(500).send();
+            res.status(200).send();
         }
     } else {
-        res.status(200).send();
+        res.status(401).send();
     }
 });
 

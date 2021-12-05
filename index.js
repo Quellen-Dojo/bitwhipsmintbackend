@@ -53,25 +53,17 @@ async function walletInWhitelist(wallet) {
     return (await WhitelistSeries1.findOne({ wallet: wallet }).exec()) !== null;
 }
 
-app.get('/ip',async (req,res) => {
-    console.log(`Request from: ${req.ip}`);
-    res.send('Ok!');
-});
-
 app.get('/checkwhitelist', async (req, res) => {
     const { wallet, key } = req.query;
-    if (key == currentKey) {
-        if (checkingWhitelist) {
-            if (await walletInWhitelist(wallet)) {
-                res.status(200).send();
-            } else {
-                res.status(404).send();
-            }
-        } else {
+    if (checkingWhitelist) {
+        if (await walletInWhitelist(wallet)) {
+            //Exists in whitelist
             res.status(200).send();
+        } else {
+            res.status(404).send();
         }
     } else {
-        res.status(401).send();
+        res.status(200).send();
     }
 });
 

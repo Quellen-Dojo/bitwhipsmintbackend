@@ -4,6 +4,7 @@ const cors = require('cors');
 const app = express();
 const mongoose = require('mongoose');
 const https = require('https');
+const e = require('express');
 
 mongoose.connect(
     `mongodb+srv://quellen:${process.env.mongopass}@cluster0.jxtal.mongodb.net/dojodb?retryWrites=true&w=majority`,
@@ -24,8 +25,14 @@ const WhitelistSchema = new Schema({
     wallet: String
 });
 
+const DiscordLinkSchema = new Schema({
+    discordId: String,
+    wallet: String
+});
+
 const WhitelistSeries1 = mongoose.model('Whitelist', WhitelistSchema);
 const AirdropsSeries1 = mongoose.model('AirdropS1', WhitelistSchema);
+const BWDiscordLink = mongoose.model('BitwhipsDiscordLink', DiscordLinkSchema);
 
 function validateWallet(wallet) {
     //In base58, there is no 0, O, l, or I in the wallet string.
@@ -46,6 +53,20 @@ function sendMessageToDiscord(message) {
         })
     );
     discordMsg.end();
+}
+
+//Check if discord link already exists
+async function checkDiscordLink(discordId,wallet=null) {
+    ret = {exists: false, wallet: undefined}
+    let dataRes = await BWDiscordLink.findOne({ discordId: discordId }).exec();
+    if (wallet && dataRes === null) {
+        dataRes = await BWDiscordLink.findOne({ wallet: wallet }).exec();
+    }
+    if (dataRes) {
+        ret['exists'] = true;
+        ret['wallet'] = dataRes.wallet;
+    }
+    return ret;
 }
 
 
@@ -93,6 +114,52 @@ app.get('/gets1whitelist', async (req, res) => {
                 res.status(200).send();
            }
         });
+    }
+});
+
+//GET that checks if this wallet is already linked or not
+app.get('/islinkedtodiscord', async (req, res) => {
+    const { key, discordId } = req.query;
+    if (key == currentKey) {
+        res.json(await checkDiscordLink(discordId)).send();
+    } else {
+        res.status(401).send();
+    }
+});
+
+//Post
+app.post('/linkdiscord', async (req, res) => {
+    const { discordId, wallet, key } = req.body;
+    if (key == currentKey) {
+        const checkRes = await checkDiscordLink(discordId,wallet);
+        const jsonRes = { exists: false, wallet: undefined, created: false};
+        if (checkRes.exists) {
+            jsonRes['exists'] = true;
+            jsonRes['wallet'] = checkRes['wallet'];
+            res.json(jsonRes).send();
+        } else {
+            await BWDiscordLink.create({ discordId: discordId, wallet: wallet });
+            jsonRes['wallet'] = wallet;
+            jsonRes['created'] = true;
+            res.json(jsonRes).send();
+        }
+    } else {
+        res.status(401).send();
+    }
+});
+
+app.post('/unlinkdiscord', async (req, res) => {
+    const { key, discordId } = req.body;
+    if (key == currentKey) {
+        const dataRes = await BWDiscordLink.findOne({ discordId: discordId }).exec();
+        if (dataRes) {
+            await BWDiscordLink.deleteMany({discordId: discordId}).exec();
+            res.status(200).send();
+        } else {
+            res.status(404).send();
+        }
+    } else {
+        res.status(401).send();
     }
 });
 

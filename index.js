@@ -96,6 +96,21 @@ app.get('/gets1whitelist', async (req, res) => {
     }
 });
 
+app.get('/gets1airdrop', async (req, res) => {
+    const { key } = req.query;
+    if (key == currentKey) {
+        AirdropsSeries1.find((err, doc) => {
+            if (err) {
+                res.status(500).send();
+            } else {
+                console.log(doc);
+                res.json(doc.map((v, i) => v.wallet)).send();
+                res.status(200).send();
+            }
+        });
+    }
+});
+
 app.get('/checkairdrop', async (req, res) => {
     const { wallet, key } = req.query;
     if (checkingWhitelist) {

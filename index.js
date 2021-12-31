@@ -196,8 +196,8 @@ app.get('/getstats', async (req, res) => {
     const { key } = req.query;
     if (key == currentKey) {
         try {
-            const numWhitelists = await getNumberInModel(WhitelistSeries1);
-            const numAirdrops = await getNumberInModel(AirdropsSeries1);
+            const numWhitelists = (await getNumberInModel(WhitelistSeries1)) + (await getNumberInModel(BWDiscordLink));
+            const numAirdrops = (await getNumberInModel(AirdropsSeries1)) + (await getNumberInModel(BWDiscordLink));
             res.json({ whitelists: numWhitelists, airdrops: numAirdrops }).send();
         } catch (e) {
             res.status(500).send();

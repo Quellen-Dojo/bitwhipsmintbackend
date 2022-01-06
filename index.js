@@ -109,7 +109,6 @@ app.get('/gets1whitelist', async (req, res) => {
             if (err) {
                 res.status(500).send();
             } else {
-                console.log(doc);
                 res.json(doc.map((v, i) => v.wallet)).send();
                 res.status(200).send();
             }
@@ -126,7 +125,6 @@ app.get('/getlinks', async (req, res) => {
             if (err) {
                 res.status(500).send();
             } else {
-                console.log(doc);
                 res.json(doc.map((v, i) => v.wallet)).send();
                 res.status(200).send();
             }
@@ -143,7 +141,6 @@ app.get('/gets1airdrop', async (req, res) => {
             if (err) {
                 res.status(500).send();
             } else {
-                console.log(doc);
                 res.json(doc.map((v, i) => v.wallet)).send();
                 res.status(200).send();
             }
@@ -158,6 +155,21 @@ app.get('/islinkedtodiscord', async (req, res) => {
     const { key, discordId } = req.query;
     if (key == currentKey) {
         res.json(await checkDiscordLink(discordId)).send();
+    } else {
+        res.status(401).send();
+    }
+});
+
+app.get('/getlinkeddiscords', async (req, res) => {
+    const { key } = req.query;
+    if (key == currentKey) {
+        BWDiscordLink.find((err, doc) => {
+            if (err) {
+                res.status(500).send();
+            } else {
+                res.json(doc.map((v, i) => v.discordId)).send();
+            } 
+        });
     } else {
         res.status(401).send();
     }

@@ -211,7 +211,20 @@ app.post('/unlinkdiscord', async (req, res) => {
     }
 });
 
-
+app.get('/walletbydiscord', async (req, res) => {
+    const { key, id } = req.query;
+    if (key == currentKey) {
+        BWDiscordLink.find({ discordId: id }, (err, doc) => {
+            if (err) {
+                res.status(404).send();
+            } else {
+                res.json({ wallet: doc[0].wallet }).send();
+            }
+        });
+    } else {
+        res.status(401).send();
+    }
+});
 
 app.get('/checkairdrop', async (req, res) => {
     const { wallet, key } = req.query;

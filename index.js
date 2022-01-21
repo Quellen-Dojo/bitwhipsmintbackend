@@ -3,8 +3,11 @@ const express = require('express');
 const cors = require('cors');
 const app = express();
 const mongoose = require('mongoose');
-const https = require('https');
-const e = require('express');
+const { https } = require('follow-redirects');
+const { Connection } = require('@metaplex/js');
+const { PublicKey, AccountInfo  } = require('@solana/web3.js');
+const { Token, TOKEN_PROGRAM_ID } = require('@solana/spl-token');
+const { Metadata } = require('@metaplex-foundation/mpl-token-metadata');
 
 mongoose.connect(
     `mongodb+srv://quellen:${process.env.mongopass}@cluster0.jxtal.mongodb.net/dojodb?retryWrites=true&w=majority`,
@@ -16,6 +19,8 @@ app.use(express.json());
 
 const Schema = mongoose.Schema;
 const ObjectID = Schema.ObjectId;
+
+const rpcConn = new Connection(process.env.rpcEndpoint, 'confirmed');
 
 let currentKey = process.env.accessKey;
 let checkingWhitelist = true;
@@ -70,6 +75,108 @@ async function checkDiscordLink(discordId,wallet=null) {
 }
 
 
+/**
+ * Verify that the metadata from a BitWhip actually belongs to BitWhips
+ * @param {Metadata} metadata
+ * @returns {boolean}
+ */
+function verifyMetadata(metadata) {
+    const treasury = 'CCw23HjhwKxxwCKdV3QUQt4XYGcQNLJPCm9rek3wkcNo';
+    const royalties = 'Ek4Q2tAt3vyhyN59G1EGUxRSZzYwnLSNDrYKF8AsLsNH';
+    const candyMachineCreator = 'GXLsCeRw6Gz6o1zGewy951GgKnZHn7k4go6g9HmHjFvh';
+    let valid = true;
+    try {
+        if (
+            (metadata.data.data.creators[0]['address'] !== treasury &&
+                metadata.data.data.creators[0]['address'] !== royalties &&
+                metadata.data.data.creators[0]['address'] !== candyMachineCreator) ||
+            (metadata.data.data.creators[1]['address'] !== treasury &&
+                metadata.data.data.creators[1]['address'] !== royalties &&
+                metadata.data.data.creators[1]['address'] !== candyMachineCreator) ||
+            (metadata.data.data.creators[2] != undefined && (metadata.data.data.creators[2]['address'] !== treasury &&
+                metadata.data.data.creators[2]['address'] !== royalties &&
+                metadata.data.data.creators[2]['address'] !== candyMachineCreator))
+        ) {
+            valid = false;
+        }
+        if (metadata.data.updateAuthority !== treasury) {
+            valid = false;
+        }
+    } catch {
+        return false;
+    }
+    return valid;
+}
+
+function getAllMetadataFromArrayOfMints(mints) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const BitWhips = [];
+            for (hash of mints) {
+                try {
+                    const tokenMeta = await Metadata.load(rpcConn, await Metadata.getPDA(hash));
+                    if (verifyMetadata(tokenMeta)) {
+                        BitWhips.push(tokenMeta.data);
+                    }
+                } catch (e) {
+                    // console.log(`Error in grabbing metadata for ${hash}: ${e}\nThis is most likely NOT a BitWhip, or even an NFT`);
+                    continue;
+                }
+            }
+            console.log(`Wallet has ${BitWhips.length} BitWhips`)
+            resolve(BitWhips);
+        } catch (e2) {
+            console.log(`Error in grabbing all metadata: ${e2}`);
+            reject(undefined);
+        }
+    });
+}
+
+/**
+ * 
+ * @param {Array} requestJson 
+ * @param {string} httpMethod 
+ * @param {string} rpcFunction 
+ * @returns {Promise<object>}
+ */
+function sendJSONRPCRequest(requestJson,httpMethod,rpcFunction) {
+    return new Promise((resolve, reject) => {
+        const baseReq = { jsonrpc: '2.0', id: 1, method: rpcFunction, params: [...requestJson,{ encoding: 'jsonParsed' }] };
+        const newReq = https.request(process.env.rpcEndpoint, { method: httpMethod, headers: { 'Content-Type': 'application/json' } }, (res) => {
+            let data = '';
+            res.on('data', (d) => data += d.toString());
+            res.on('error', () => reject('Error sending request to RPC URL'));
+            res.on('end', () => {
+                resolve(JSON.parse(data)); 
+            });
+        });
+        if (httpMethod === 'POST') {
+            newReq.write(JSON.stringify(baseReq));
+            newReq.end();
+        }
+    });
+}
+
+
+/**
+ * 
+ * @param {string} wallet 
+ */
+function getAllBitWhips(wallet) {
+
+    return new Promise(async (resolve, reject) => {
+        try {
+            const tokenReq = await sendJSONRPCRequest([wallet, { programId: TOKEN_PROGRAM_ID.toBase58() }], 'POST', 'getTokenAccountsByOwner');
+            const tokenMints = tokenReq.result.value.map((v) => v.account.data.parsed.info.mint);
+            resolve(await getAllMetadataFromArrayOfMints(tokenMints));
+        } catch (e) {
+            // console.log(`Error in getAllBitWhips(): ${e}`);
+            reject(e);
+        }
+    });
+}
+
+
 //Check if the wallet exists inside the whitelist
 async function walletInWhitelist(wallet) {
     return (await WhitelistSeries1.findOne({ wallet: wallet }).exec()) !== null;
@@ -87,6 +194,17 @@ async function walletInAirdrop(wallet) {
 async function getNumberInModel(model) {
     return await model.estimatedDocumentCount().exec();
 }
+
+app.get('/getallwhips', async (req, res) => {
+    const { wallet, username } = req.query;
+    try {
+        res.json(await getAllBitWhips(wallet)).send();
+    }
+    catch (e) {
+        console.log(e);
+        res.status(500).send();
+    }
+});
 
 app.get('/checkwhitelist', async (req, res) => {
     const { wallet, key } = req.query;

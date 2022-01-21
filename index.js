@@ -180,7 +180,6 @@ function sendJSONRPCRequest(requestJson,httpMethod,rpcFunction) {
  * @param {string} wallet 
  */
 function getAllBitWhips(wallet) {
-
     return new Promise(async (resolve, reject) => {
         try {
             const tokenReq = await sendJSONRPCRequest([wallet, { programId: TOKEN_PROGRAM_ID.toBase58() }], 'POST', 'getTokenAccountsByOwner');
@@ -214,12 +213,17 @@ async function getNumberInModel(model) {
 
 app.get('/getallwhips', async (req, res) => {
     const { wallet, username } = req.query;
-    try {
-        res.json(await getAllBitWhips(wallet)).send();
+    if (validateWallet(wallet)) {
+        try {
+            res.json(await getAllBitWhips(wallet)).send();
+        }
+        catch (e) {
+            console.log(e);
+            res.status(500).send();
+        }
     }
-    catch (e) {
-        console.log(e);
-        res.status(500).send();
+    else {
+        res.status(400).send();
     }
 });
 

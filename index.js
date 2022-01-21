@@ -74,6 +74,23 @@ async function checkDiscordLink(discordId,wallet=null) {
     return ret;
 }
 
+function redirectThroughArweave(url) {
+    return new Promise((resolve, reject) => {
+        const arReq = https.get(url, { headers: { 'Content-Type': 'application/json' } }, (res) => {
+            try {
+                let data = '';
+                res.on('data', (d) => data += d.toString());
+                res.on('error', () => reject());
+                res.on('end', () => {
+                    resolve(JSON.parse(data));
+                });
+            }
+            catch {
+                reject();
+            }
+        });
+    })
+}
 
 /**
  * Verify that the metadata from a BitWhip actually belongs to BitWhips
@@ -116,7 +133,7 @@ function getAllMetadataFromArrayOfMints(mints) {
                 try {
                     const tokenMeta = await Metadata.load(rpcConn, await Metadata.getPDA(hash));
                     if (verifyMetadata(tokenMeta)) {
-                        BitWhips.push(tokenMeta.data);
+                        BitWhips.push(await redirectThroughArweave(tokenMeta.data.data.uri));
                     }
                 } catch (e) {
                     // console.log(`Error in grabbing metadata for ${hash}: ${e}\nThis is most likely NOT a BitWhip, or even an NFT`);

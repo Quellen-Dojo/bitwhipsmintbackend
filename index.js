@@ -125,7 +125,21 @@ function verifyMetadata(metadata) {
     return valid;
 }
 
-function getAllMetadataFromArrayOfMints(mints) {
+function getAllMetadataFromArrayOfMints(mints, topLevel = false) {
+    
+    /**
+     * 
+     * @param {object} data 
+     * @param {string} hash
+     * @param {boolean?} topLevel 
+     */
+    const appendTopLevelMetadata = (data,hash, topLevel) => { 
+        if (!topLevel) { return data; } else {
+            data['mint'] = hash;
+        }
+        return data;
+    };
+
     return new Promise(async (resolve, reject) => {
         try {
             const BitWhips = [];
@@ -133,7 +147,7 @@ function getAllMetadataFromArrayOfMints(mints) {
                 try {
                     const tokenMeta = await Metadata.load(rpcConn, await Metadata.getPDA(hash));
                     if (verifyMetadata(tokenMeta)) {
-                        BitWhips.push(await redirectThroughArweave(tokenMeta.data.data.uri));
+                        BitWhips.push(appendTopLevelMetadata(await redirectThroughArweave(tokenMeta.data.data.uri),hash,topLevel));
                     }
                 } catch (e) {
                     // console.log(`Error in grabbing metadata for ${hash}: ${e}\nThis is most likely NOT a BitWhip, or even an NFT`);
@@ -179,12 +193,12 @@ function sendJSONRPCRequest(requestJson,httpMethod,rpcFunction) {
  * 
  * @param {string} wallet 
  */
-function getAllBitWhips(wallet) {
+function getAllBitWhips(wallet, topLevel=false) {
     return new Promise(async (resolve, reject) => {
         try {
             const tokenReq = await sendJSONRPCRequest([wallet, { programId: TOKEN_PROGRAM_ID.toBase58() }], 'POST', 'getTokenAccountsByOwner');
             const tokenMints = tokenReq.result.value.map((v) => v.account.data.parsed.info.mint);
-            resolve(await getAllMetadataFromArrayOfMints(tokenMints));
+            resolve(await getAllMetadataFromArrayOfMints(tokenMints,topLevel));
         } catch (e) {
             // console.log(`Error in getAllBitWhips(): ${e}`);
             reject(e);
@@ -211,11 +225,24 @@ async function getNumberInModel(model) {
     return await model.estimatedDocumentCount().exec();
 }
 
+app.post('/processcarwash', async (req, res) => {
+    const { signature, nft } = req.body;
+    try {
+        console.log(nft);
+        console.log(await rpcConn.confirmTransaction(signature, 'confirmed'));
+        res.status(200).send();
+    }
+    catch (e) {
+        console.log(e);
+        res.status(500).send();
+    }
+});
+
 app.get('/getallwhips', async (req, res) => {
-    const { wallet, username } = req.query;
+    const { wallet, username, includeTopLevel } = req.query;
     if (validateWallet(wallet)) {
         try {
-            res.json(await getAllBitWhips(wallet)).send();
+            res.json(await getAllBitWhips(wallet,includeTopLevel === 'true')).send();
         }
         catch (e) {
             console.log(e);
@@ -400,6 +427,8 @@ app.post('/rollkey', async (req, res) => {
         currentKey = newKey;
     }
  });
+
+
 
 app.post('/addtowhitelist', async (req, res) => {
     const { key, wallet, list } = req.body;

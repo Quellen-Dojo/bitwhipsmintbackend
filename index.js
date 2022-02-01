@@ -4,15 +4,32 @@ const cors = require('cors');
 const app = express();
 const mongoose = require('mongoose');
 const { https } = require('follow-redirects');
-const { Connection } = require('@metaplex/js');
-const { PublicKey, AccountInfo  } = require('@solana/web3.js');
+const { Connection, actions } = require('@metaplex/js');
+const { PublicKey, AccountInfo, LAMPORTS_PER_SOL  } = require('@solana/web3.js');
 const { Token, TOKEN_PROGRAM_ID } = require('@solana/spl-token');
-const { Metadata } = require('@metaplex-foundation/mpl-token-metadata');
+const { Metadata, MetadataData } = require('@metaplex-foundation/mpl-token-metadata');
+const fs = require('fs');
+const mergeImages = require('merge-images');
+const { Canvas, Image } = require('canvas');
+const IPFS = require('ipfs-http-client');
+const { Wallet } = require('@project-serum/anchor');
+// const { File, NFTStorage } = require('nft.storage');
 
 mongoose.connect(
     `mongodb+srv://quellen:${process.env.mongopass}@cluster0.jxtal.mongodb.net/dojodb?retryWrites=true&w=majority`,
     { useNewUrlParser: true, useUnifiedTopology: true }
 );
+
+const IPFSClient = IPFS.create({
+    host: 'ipfs.infura.io',
+    port: 5001,
+    protocol: 'https',
+    headers: {
+        authorization:
+            'Basic ' + Buffer.from(process.env.infuraIPFSProjectID + ':' + process.env.infuraIPFSProjectSecret).toString('base64'),
+    },
+    apiPath: '/api/v0',
+});
 
 app.use(cors());
 app.use(express.json());
@@ -21,6 +38,7 @@ const Schema = mongoose.Schema;
 const ObjectID = Schema.ObjectId;
 
 const rpcConn = new Connection(process.env.rpcEndpoint, 'confirmed');
+// const storageClient = new NFTStorage({ token: process.env.nftSotrageApiKey });
 
 let currentKey = process.env.accessKey;
 let checkingWhitelist = true;
@@ -38,6 +56,156 @@ const DiscordLinkSchema = new Schema({
 const WhitelistSeries1 = mongoose.model('Whitelist', WhitelistSchema);
 const AirdropsSeries1 = mongoose.model('AirdropS1', WhitelistSchema);
 const BWDiscordLink = mongoose.model('BitwhipsDiscordLink', DiscordLinkSchema);
+
+removeWeightRegex = /^([\w\s]+)/;
+
+const dirtyVersions = {
+    'Beach Carbon': ['Beach Carbon Dirty', 'Beach Carbon Patina Dirty', 'Beach Carbon Patina'],
+    'Beach Clean': ['Beach Dirty', 'Beach Patina Dirty', 'Beach Patina'],
+
+    'Black Carbon': ['Black Carbon Dirty', 'Black Carbon Patina Dirty', 'Black Carbon Patina'],
+    'Black Clean': ['Black Dirty', 'Black Patina Dirty', 'Black Patina'],
+
+    'Blue Carbon': ['Blue Carbon Dirty', 'Blue Carbon Patina Dirty', 'Blue Carbon Patina'],
+    'Blue Clean': ['Blue Dirty', 'Blue Patina Dirty', 'Blue Patina'],
+
+    'Crimson Carbon': ['Crimson Carbon Dirty', 'Crimson Carbon Patina Dirty', 'Crimson Carbon Patina'],
+    'Crimson Clean': ['Crimson Dirty', 'Crimson Patina Dirty', 'Crimson Patina'],
+
+    'Dusk Carbon': ['Dusk Carbon Dirty', 'Dusk Carbon Patina Dirty', 'Dusk Carbon Patina'],
+    'Dusk Clean': ['Dusk Dirty', 'Dusk Patina Dirty', 'Dusk Patina'],
+
+    'Green Carbon': ['Green Carbon Dirty', 'Green Carbon Patina Dirty', 'Green Carbon Patina'],
+    'Green Clean': ['Green Dirty', 'Green Patina Dirty', 'Green Patina'],
+
+    'Orange Carbon': ['Orange Carbon Dirty', 'Orange Carbon Patina Dirty', 'Orange Carbon Patina'],
+    'Orange Clean': ['Orange Dirty', 'Orange Patina Dirty', 'Orange Patina'],
+
+    'Pink Carbon': ['Pink Carbon Dirty', 'Pink Carbon Patina Dirty', 'Pink Carbon Patina'],
+    'Pink Clean': ['Pink Dirty', 'Pink Patina Dirty', 'Pink Patina'],
+
+    'Purple Carbon': ['Purple Carbon Dirty', 'Purple Carbon Patina Dirty', 'Purple Carbon Patina'],
+    'Purple Clean': ['Purple Dirty', 'Purple Patina Dirty', 'Purple Patina'],
+
+    'Teal Carbon': ['Teal Carbon Dirty', 'Teal Carbon Patina Dirty', 'Teal Carbon Patina'],
+    'Teal Clean': ['Teal Dirty', 'Teal Patina Dirty', 'Teal Patina'],
+
+    'White Carbon': ['White Carbon Dirty', 'White Carbon Patina Dirty', 'White Carbon Patina'],
+    'White Clean': ['White Dirty', 'White Patina Dirty', 'White Patina'],
+
+    'Yellow Carbon': ['Yellow Carbon Dirty', 'Yellow Carbon Patina Dirty', 'Yellow Carbon Patina'],
+    'Yellow Clean': ['Yellow Dirty', 'Yellow Patina Dirty', 'Yellow Patina'],
+
+    'Sunset Carbon': ['Sunset Carbon Dirty', 'Sunset Carbon Patina Dirty', 'Sunset Carbon Patina'],
+    'Sunset Clean': ['Sunset Dirty', 'Sunset Patina Dirty', 'Sunset Patina'],
+
+    'Red Carbon': ['Red Carbon Dirty', 'Red Carbon Patina Dirty', 'Red Carbon Patina'],
+    'Red Clean': ['Red Dirty', 'Red Patina Dirty', 'Red Patina'],
+
+    'Stock Clean': ['Stock Dirty'],
+
+    'Blacked Out': ['Blacked Out Dirty'],
+
+    'Blue Clean': ['Blue Dirty'],
+    'Limo Tint Clean': ['Limo Tint Dirty'],
+    'Mirror Clean': ['Mirror Dirty'],
+    'Normal Clean': ['Normal Dirty'],
+
+    '10 Spoke': ['10 Spoke Dirty'],
+    '10 Spoke Red': ['10 Spoke Red Dirty'],
+    'Rally Gold': ['Rally Gold Dirty'],
+    'Rally Red': ['Rally Red Dirty'],
+    'Reps Bronze': ['Reps Bronze Dirty'],
+    'Reps Gold': ['Reps Gold Dirty'],
+    'Reps Grey': ['Reps Grey Dirty'],
+    'Reps Red': ['Reps Red Dirty'],
+    'Reps White': ['Reps White Dirty'],
+    Stock: ['Stock Dirty'],
+};
+
+const alwaysClean = [
+    'Rally White',
+    'Rally Crint',
+    'Omnitrix',
+    'Reps Crint',
+    'Reps Green Clean',
+    'Reps Pink',
+    'Chameleon',
+];
+
+function findFileFromTrait(category, trait_name) {
+    return new Promise((resolve, reject) => {
+        fs.readdir(`./landevo_layers/${category}/`, (err, files) => {
+            if (err) {
+                reject(`Error locating category ${category}`);
+            } else {
+                for (file of files) {
+                    if (file.match(removeWeightRegex)[0] === trait_name) {
+                        console.log(file);
+                        resolve(file);
+                    }
+                }
+                reject('Could not find that trait!');
+            }
+        });
+    });
+}
+
+/**
+ *
+ * @param {string} trait_name
+ */
+async function getCleanVersion(category,trait_name) {
+    for (trait of Object.keys(dirtyVersions)) {
+        try {
+            if (dirtyVersions[trait].includes(trait_name) && await findFileFromTrait(category, trait)) {
+                return trait;
+            }
+        } catch {
+            continue;
+        }
+    }
+    return trait_name;
+}
+
+async function generateCleanFromMetadata(metadata) {
+    let newMetadata = {};
+    let pureNewAttributes = [];
+    const mintAddress = metadata['mint'];
+    const imageSources = [];
+    for (const trait of metadata['attributes']) {
+        const cleanVersionTrait = await getCleanVersion(trait['trait_type'],trait['value']);
+        newMetadata[trait['trait_type']] = cleanVersionTrait
+        imageSources.push('./landevo_layers/' + trait['trait_type'] + '/' + (await findFileFromTrait(trait['trait_type'], cleanVersionTrait)));
+        pureNewAttributes.push({ trait_type: trait['trait_type'], value: cleanVersionTrait });
+    }
+
+    const newImage = await mergeImages(imageSources, {Canvas: Canvas, Image: Image});
+    const imageData = newImage.replace(/^data:image\/png;base64,/, '');
+    const imageBuff = Buffer.from(imageData, 'base64');
+
+    // fs.writeFileSync(`./carwashOutput/${mintAddress}.png`, imageBuff);
+    
+    const ipfsCID = await IPFSClient.add(imageBuff, { pin: true });
+    const newCIDStr = ipfsCID.cid.toV0().toString();
+    console.log(`IPFS PNG CID: ${newCIDStr}`);
+
+    metadata['attributes'] = pureNewAttributes;
+    metadata['image'] = 'https://ipfs.infura.io/ipfs/' + newCIDStr;
+    delete metadata.mint;
+
+    const newJSONCID = await IPFSClient.add(JSON.stringify(metadata), { pin: true });
+    console.log(`JSON CID: ${newJSONCID.cid.toV0().toString()}`);
+    console.log('Uploaded JSON!');
+
+    // Need to grab treasury wallet address, and turn it into an anchor,
+    // Parse new metadata
+    // actions.updateMetadata({
+    //     connection: rpcConn,
+    //     wallet: new Wallet(),
+    //     newMetadataData: new MetadataData({})
+    // });
+}
 
 function validateWallet(wallet) {
     //In base58, there is no 0, O, l, or I in the wallet string.
@@ -225,14 +393,44 @@ async function getNumberInModel(model) {
     return await model.estimatedDocumentCount().exec();
 }
 
+function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * 
+ * @param {[Number,Number,Number]} preBalances 
+ * @param {[Number,Number,Number]} postBalances 
+ * @param {Number} lamports 
+ * @param {Number} fee 
+ * @returns 
+ */
+function validateTxnTransferAmounts(preBalances, postBalances, lamports, fee) {
+    return (preBalances[0] - postBalances[0]  === lamports + fee && postBalances[1] - preBalances[1] === lamports)
+}
+
 app.post('/processcarwash', async (req, res) => {
-    const { signature, nft } = req.body;
+    const { signature, nft, fromWallet } = req.body;
     try {
         console.log(nft);
+        await sleep(2000);
         console.log(await rpcConn.confirmTransaction(signature, 'confirmed'));
-        res.status(200).send();
-    }
-    catch (e) {
+        const txn = await rpcConn.getTransaction(signature);
+        console.log(txn);
+        const from = txn.transaction.message.accountKeys[0];
+        const to = txn.transaction.message.accountKeys[1];
+        if (
+            validateTxnTransferAmounts(txn.meta.preBalances, txn.meta.postBalances, 1000000, txn.meta.fee) &&
+            to.toBase58() === '3uAvEjbkSY7GL2vddbczYwJxXWu74HHrkZeFB96u6Bi5' &&
+            fromWallet == from.toBase58()
+        ) {
+            //update metadata here!
+            await generateCleanFromMetadata(nft);
+            res.status(200).send();
+        } else {
+            res.status(304).send();
+        }
+    } catch (e) {
         console.log(e);
         res.status(500).send();
     }

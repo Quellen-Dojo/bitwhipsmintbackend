@@ -192,6 +192,7 @@ async function generateCleanFromMetadata(metadata) {
 
     metadata['attributes'] = pureNewAttributes;
     metadata['image'] = 'https://ipfs.infura.io/ipfs/' + newCIDStr;
+    metadata['properties']['files'][0][uri] = 'https://ipfs.infura.io/ipfs/' + newCIDStr;
     delete metadata.mint;
 
     const newJSONCID = await IPFSClient.add(JSON.stringify(metadata), { pin: true });

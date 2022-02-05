@@ -408,7 +408,8 @@ function getAllBitWhips(wallet, topLevel=false) {
     return new Promise(async (resolve, reject) => {
         try {
             const tokenReq = await sendJSONRPCRequest([wallet, { programId: TOKEN_PROGRAM_ID.toBase58() }], 'POST', 'getTokenAccountsByOwner');
-            const tokenMints = tokenReq.result.value.map((v) => v.account.data.parsed.info.mint);
+            console.log(tokenReq);
+            const tokenMints = tokenReq.result.value.filter(v => v.account.data.parsed.info.tokenAmount.amount > 0).map((v) => v.account.data.parsed.info.mint);
             console.log(tokenMints);
             resolve(await getAllMetadataFromArrayOfMints(tokenMints,topLevel));
         } catch (e) {

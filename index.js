@@ -440,6 +440,23 @@ function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function retryGetTransaction(sig) {
+    let tries = 0;
+    while (tries < 4) {
+        try {
+            const txn = await rpcConn.getTransaction(signature);
+            console.log(txn);
+            if (txn) {
+                return txn;
+            }
+            continue;
+        } catch {
+            tries += 1;
+        }
+        await sleep(1000);
+    }
+}
+
 /**
  * 
  * @param {[Number,Number,Number]} preBalances 
@@ -458,7 +475,7 @@ app.post('/processcarwash', async (req, res) => {
         console.log(nft);
         await sleep(2000);
         console.log(await rpcConn.confirmTransaction(signature, 'confirmed'));
-        const txn = await rpcConn.getTransaction(signature);
+        const txn = await retryGetTransaction(signature);
         const tokenMeta = await fetchMetadataOfToken(nft.mint);
         tokenMeta['mint'] = nft.mint;
         console.log(txn);

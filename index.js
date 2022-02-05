@@ -473,6 +473,10 @@ function validateTxnTransferAmounts(preBalances, postBalances, lamports, fee) {
     return (preBalances[0] - postBalances[0]  === lamports + fee && postBalances[1] - preBalances[1] === lamports)
 }
 
+app.get('/ping', (req, res) => {
+    res.send('Pong!');
+});
+
 app.post('/processcarwash', async (req, res) => {
     const { signature, nft, fromWallet } = req.body;
     try {

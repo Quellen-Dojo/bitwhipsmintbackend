@@ -151,11 +151,11 @@ function findFileFromTrait(category, trait_name) {
             } else {
                 for (file of files) {
                     if (file.match(removeWeightRegex)[0] === trait_name) {
-                        console.log(file);
+                        // console.log(file);
                         resolve(file);
                     }
                 }
-                reject('Could not find that trait!');
+                reject(`Could not find trait {trait_type: '${category}', value: ${trait_name}}`);
             }
         });
     });
@@ -408,9 +408,9 @@ function getAllBitWhips(wallet, topLevel=false) {
     return new Promise(async (resolve, reject) => {
         try {
             const tokenReq = await sendJSONRPCRequest([wallet, { programId: TOKEN_PROGRAM_ID.toBase58() }], 'POST', 'getTokenAccountsByOwner');
-            console.log(tokenReq);
+            // console.log(tokenReq);
             const tokenMints = tokenReq.result.value.filter(v => v.account.data.parsed.info.tokenAmount.amount > 0).map((v) => v.account.data.parsed.info.mint);
-            console.log(tokenMints);
+            // console.log(tokenMints);
             resolve(await getAllMetadataFromArrayOfMints(tokenMints,topLevel));
         } catch (e) {
             // console.log(`Error in getAllBitWhips(): ${e}`);
@@ -480,7 +480,7 @@ app.get('/ping', (req, res) => {
 app.post('/processcarwash', async (req, res) => {
     const { signature, nft, fromWallet } = req.body;
     try {
-        console.log(nft);
+        // console.log(nft);
         await sleep(2000);
         console.log(await rpcConn.confirmTransaction(signature, 'confirmed'));
         const txn = await retryGetTransaction(signature);

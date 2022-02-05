@@ -175,6 +175,10 @@ function incrementWash() {
     });
 }
 
+app.get('/increment', async (req, res) => {
+    res.json({ amount: await incrementWash() }).send();
+});
+
 /**
  * 
  * @param {string} tadd 

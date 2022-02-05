@@ -62,10 +62,16 @@ const CarwashCountSchema = new Schema({
     amount: Number
 });
 
+const LandevoMetadataSchema = new Schema({
+    mintAddress: String,
+    metadata: Object
+});
+
 const WhitelistSeries1 = mongoose.model('Whitelist', WhitelistSchema);
 const AirdropsSeries1 = mongoose.model('AirdropS1', WhitelistSchema);
 const BWDiscordLink = mongoose.model('BitwhipsDiscordLink', DiscordLinkSchema);
 const CarwashCount = mongoose.model('CarwashCount', CarwashCountSchema);
+const LandevoMetadata = mongoose.model('LandevoMetadata', LandevoMetadataSchema);
 
 removeWeightRegex = /^([\w\s]+)/;
 
@@ -161,6 +167,16 @@ function findFileFromTrait(category, trait_name) {
     });
 }
 
+async function createLandevoMetadataMongo(mint, metadata) {
+    const res = await LandevoMetadata.create({ mintAddress: mint, metadata: metadata });
+    return res;
+}
+
+async function updateLandevoMetadataMongo(mint, newmetadata) {
+    const res = await LandevoMetadata.updateOne({ mintAddress: mint }, { metadata: newmetadata }).exec();
+    return res;
+}
+
 function incrementWash() {
     return new Promise((resolve, reject) => {
         CarwashCount.findById(carwashCountDoc, async (err, doc) => {
@@ -177,10 +193,10 @@ function incrementWash() {
 
 /**
  * 
- * @param {string} tadd 
+ * @param {string} mintAddress 
  */
-async function fetchMetadataOfToken(tadd) {
-    const topLevel = await Metadata.load(rpcConn, await Metadata.getPDA(new PublicKey(tadd)));
+async function fetchMetadataOfToken(mintAddress) {
+    const topLevel = await Metadata.load(rpcConn, await Metadata.getPDA(new PublicKey(mintAddress)));
     return (await redirectThroughArweave(topLevel.data.data.uri));
 }
 
@@ -246,6 +262,8 @@ async function generateCleanUploadAndUpdate(metadata) {
     const updateSig = await actions.updateMetadata({ connection: rpcConn, wallet: treasuryWallet, editionMint: mintKey, newMetadataData: topLevelDataData, });
 
     console.log(`Update sig for ${mintAddress}: ${updateSig}`);
+
+    await updateLandevoMetadataMongo(mintAddress, metadata);
 
     return updateSig;
 }
@@ -475,6 +493,28 @@ function validateTxnTransferAmounts(preBalances, postBalances, lamports, fee) {
 
 app.get('/ping', (req, res) => {
     res.send('Pong!');
+});
+
+// app.post('/submit', async (req, res) => {
+//     const { list } = req.body;
+//     try {
+//         for (hash of list) {
+//             const metadata = await fetchMetadataOfToken(hash);
+//             console.log(await createLandevoMetadataMongo(hash, metadata));
+//         }
+//     } catch (error) {
+//         console.log(error);
+//         res.status(500).send();
+//     }
+// });
+
+app.get('/washedcars', async (req, res) => {
+    try {
+        const washedcars = (await CarwashCount.findOne({ _id: carwashCountDoc }).exec()).amount;
+        res.json({ amount: washedcars }).send();
+    } catch {
+        res.status(500).send();
+    }
 });
 
 app.post('/processcarwash', async (req, res) => {

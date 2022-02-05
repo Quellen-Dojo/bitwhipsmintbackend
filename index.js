@@ -486,8 +486,8 @@ app.post('/processcarwash', async (req, res) => {
         const from = txn.transaction.message.accountKeys[0];
         const to = txn.transaction.message.accountKeys[1];
         if (
-            validateTxnTransferAmounts(txn.meta.preBalances, txn.meta.postBalances, 1000000, txn.meta.fee) &&
-            to.toBase58() === 'CCw23HjhwKxxwCKdV3QUQt4XYGcQNLJPCm9rek3wkcNo' &&
+            validateTxnTransferAmounts(txn.meta.preBalances, txn.meta.postBalances, 200000000, txn.meta.fee) &&
+            to.toBase58() === '8ciei6XBAgjLHJjfRYSXducTWzzA5JLY9GajCzYBhLit' &&
             fromWallet == from.toBase58() &&
             !tokenMeta['Washed']
         ) {

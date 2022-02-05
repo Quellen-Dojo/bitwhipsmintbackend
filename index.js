@@ -444,17 +444,19 @@ async function retryGetTransaction(sig) {
     let tries = 0;
     while (tries < 4) {
         try {
-            const txn = await rpcConn.getTransaction(signature);
+            const txn = await rpcConn.getTransaction(sig);
             console.log(txn);
             if (txn) {
                 return txn;
             }
             continue;
-        } catch {
+        } catch (e) {
+            console.log(e);
             tries += 1;
         }
         await sleep(1000);
     }
+    throw new Error('Could not grab transaction!');
 }
 
 /**

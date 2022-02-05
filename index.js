@@ -220,7 +220,7 @@ async function generateCleanUploadAndUpdate(metadata) {
     const imageData = newImage.replace(/^data:image\/png;base64,/, '');
     const imageBuff = Buffer.from(imageData, 'base64');
 
-    fs.writeFileSync(`./carwashOutput/${mintAddress}.png`, imageBuff);
+    // fs.writeFileSync(`./carwashOutput/${mintAddress}.png`, imageBuff);
     
     const ipfsCID = await IPFSClient.add(imageBuff, { pin: true });
     const newCIDStr = ipfsCID.cid.toV0().toString();

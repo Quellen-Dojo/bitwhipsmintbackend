@@ -4,8 +4,8 @@ const cors = require('cors');
 const app = express();
 const mongoose = require('mongoose');
 const { https } = require('follow-redirects');
-const { Connection, actions } = require('@metaplex/js');
-const { PublicKey, AccountInfo, LAMPORTS_PER_SOL  } = require('@solana/web3.js');
+const { actions, NodeWallet } = require('@metaplex/js');
+const { PublicKey, AccountInfo, LAMPORTS_PER_SOL, Connection, Keypair  } = require('@solana/web3.js');
 const { Token, TOKEN_PROGRAM_ID } = require('@solana/spl-token');
 const { Metadata, MetadataData } = require('@metaplex-foundation/mpl-token-metadata');
 const fs = require('fs');
@@ -14,6 +14,8 @@ const { Canvas, Image } = require('canvas');
 const IPFS = require('ipfs-http-client');
 const { Wallet } = require('@project-serum/anchor');
 // const { File, NFTStorage } = require('nft.storage');
+
+const carwashCountDoc = process.env.carwashCountDoc;
 
 mongoose.connect(
     `mongodb+srv://quellen:${process.env.mongopass}@cluster0.jxtal.mongodb.net/dojodb?retryWrites=true&w=majority`,
@@ -37,8 +39,11 @@ app.use(express.json());
 const Schema = mongoose.Schema;
 const ObjectID = Schema.ObjectId;
 
-const rpcConn = new Connection(process.env.rpcEndpoint, 'confirmed');
-// const storageClient = new NFTStorage({ token: process.env.nftSotrageApiKey });
+const rpcConn = new Connection(process.env.rpcEndpoint, {commitment: 'confirmed', confirmTransactionInitialTimeout: 100000});
+
+const treasuryWallet = new NodeWallet(Keypair.fromSecretKey(Uint8Array.from(process.env.treasuryWallet.split(',').map(v => parseInt(v)))));
+
+console.log(`Treasury Wallet: ${treasuryWallet.publicKey.toBase58()}`);
 
 let currentKey = process.env.accessKey;
 let checkingWhitelist = true;
@@ -53,9 +58,14 @@ const DiscordLinkSchema = new Schema({
     wallet: String
 });
 
+const CarwashCountSchema = new Schema({
+    amount: Number
+});
+
 const WhitelistSeries1 = mongoose.model('Whitelist', WhitelistSchema);
 const AirdropsSeries1 = mongoose.model('AirdropS1', WhitelistSchema);
 const BWDiscordLink = mongoose.model('BitwhipsDiscordLink', DiscordLinkSchema);
+const CarwashCount = mongoose.model('CarwashCount', CarwashCountSchema);
 
 removeWeightRegex = /^([\w\s]+)/;
 
@@ -151,6 +161,29 @@ function findFileFromTrait(category, trait_name) {
     });
 }
 
+function incrementWash() {
+    return new Promise((resolve, reject) => {
+        CarwashCount.findById(carwashCountDoc, async (err, doc) => {
+            if (err) {
+                reject('Cannot find document');
+            } else {
+                const newVal = doc.amount + 1;
+                await CarwashCount.updateOne({ id: carwashCountDoc }, { amount: newVal }).exec();
+                resolve(newVal);
+            }
+        });
+    });
+}
+
+/**
+ * 
+ * @param {string} tadd 
+ */
+async function fetchMetadataOfToken(tadd) {
+    const topLevel = await Metadata.load(rpcConn, await Metadata.getPDA(new PublicKey(tadd)));
+    return (await redirectThroughArweave(topLevel.data.data.uri));
+}
+
 /**
  *
  * @param {string} trait_name
@@ -168,23 +201,26 @@ async function getCleanVersion(category,trait_name) {
     return trait_name;
 }
 
-async function generateCleanFromMetadata(metadata) {
+async function generateCleanUploadAndUpdate(metadata) {
     let newMetadata = {};
     let pureNewAttributes = [];
     const mintAddress = metadata['mint'];
     const imageSources = [];
     for (const trait of metadata['attributes']) {
         const cleanVersionTrait = await getCleanVersion(trait['trait_type'],trait['value']);
-        newMetadata[trait['trait_type']] = cleanVersionTrait
+        newMetadata[trait['trait_type']] = cleanVersionTrait;
         imageSources.push('./landevo_layers/' + trait['trait_type'] + '/' + (await findFileFromTrait(trait['trait_type'], cleanVersionTrait)));
         pureNewAttributes.push({ trait_type: trait['trait_type'], value: cleanVersionTrait });
     }
+
+    imageSources.push('./landevo_layers/Washed/Washed.png')
+    pureNewAttributes.push({ trait_type: 'Washed', value: `Ticket Number: ${await incrementWash()}` });
 
     const newImage = await mergeImages(imageSources, {Canvas: Canvas, Image: Image});
     const imageData = newImage.replace(/^data:image\/png;base64,/, '');
     const imageBuff = Buffer.from(imageData, 'base64');
 
-    // fs.writeFileSync(`./carwashOutput/${mintAddress}.png`, imageBuff);
+    fs.writeFileSync(`./carwashOutput/${mintAddress}.png`, imageBuff);
     
     const ipfsCID = await IPFSClient.add(imageBuff, { pin: true });
     const newCIDStr = ipfsCID.cid.toV0().toString();
@@ -192,20 +228,26 @@ async function generateCleanFromMetadata(metadata) {
 
     metadata['attributes'] = pureNewAttributes;
     metadata['image'] = 'https://ipfs.infura.io/ipfs/' + newCIDStr;
-    metadata['properties']['files'][0][uri] = 'https://ipfs.infura.io/ipfs/' + newCIDStr;
+
+    sendMessageToDiscord(`New Car washed! ${'https://ipfs.infura.io/ipfs/' + newCIDStr}`, 'Car Wash Notifications');
+
+    metadata['properties']['files'][0]['uri'] = 'https://ipfs.infura.io/ipfs/' + newCIDStr;
     delete metadata.mint;
 
     const newJSONCID = await IPFSClient.add(JSON.stringify(metadata), { pin: true });
     console.log(`JSON CID: ${newJSONCID.cid.toV0().toString()}`);
     console.log('Uploaded JSON!');
 
-    // Need to grab treasury wallet address, and turn it into an anchor,
-    // Parse new metadata
-    // actions.updateMetadata({
-    //     connection: rpcConn,
-    //     wallet: new Wallet(),
-    //     newMetadataData: new MetadataData({})
-    // });
+    const mintKey = new PublicKey(mintAddress);
+    const topLevelMetadata = await Metadata.load(rpcConn, await Metadata.getPDA(mintKey));
+    const topLevelDataData = topLevelMetadata.data.data;
+    topLevelDataData.uri = 'https://ipfs.infura.io/ipfs/' + newJSONCID.cid.toV0().toString();
+    console.log(topLevelDataData);
+    const updateSig = await actions.updateMetadata({ connection: rpcConn, wallet: treasuryWallet, editionMint: mintKey, newMetadataData: topLevelDataData, });
+
+    console.log(`Update sig for ${mintAddress}: ${updateSig}`);
+
+    return updateSig;
 }
 
 function validateWallet(wallet) {
@@ -214,14 +256,14 @@ function validateWallet(wallet) {
     return walletRegex.test(wallet);
 }
 
-function sendMessageToDiscord(message) {
+function sendMessageToDiscord(message, username) {
     const discordMsg = https.request(
         process.env.discordWebhook,
         { method: 'POST', headers: { 'Content-Type': 'application/json' } }
     );
     discordMsg.write(
         JSON.stringify({
-            username: 'Whitelisting Integration',
+            username: username,
             avatar_url: '',
             content: message,
         })
@@ -417,22 +459,34 @@ app.post('/processcarwash', async (req, res) => {
         await sleep(2000);
         console.log(await rpcConn.confirmTransaction(signature, 'confirmed'));
         const txn = await rpcConn.getTransaction(signature);
+        const tokenMeta = await fetchMetadataOfToken(nft.mint);
+        tokenMeta['mint'] = nft.mint;
         console.log(txn);
         const from = txn.transaction.message.accountKeys[0];
         const to = txn.transaction.message.accountKeys[1];
         if (
             validateTxnTransferAmounts(txn.meta.preBalances, txn.meta.postBalances, 1000000, txn.meta.fee) &&
-            to.toBase58() === '3uAvEjbkSY7GL2vddbczYwJxXWu74HHrkZeFB96u6Bi5' &&
-            fromWallet == from.toBase58()
+            to.toBase58() === 'CCw23HjhwKxxwCKdV3QUQt4XYGcQNLJPCm9rek3wkcNo' &&
+            fromWallet == from.toBase58() &&
+            !tokenMeta['Washed']
         ) {
             //update metadata here!
-            await generateCleanFromMetadata(nft);
-            res.status(200).send();
+            try {
+                await generateCleanUploadAndUpdate(tokenMeta);
+                res.status(200).send();
+            } catch (generationError) {
+                sendMessageToDiscord(
+                    `<@&898643399299694622> <@&900148882489634836> **SERIOUS ERROR WITH THE CARWASH**\n\nTxn Signature: ${signature}\n\nWe may have to refund this transaction!\n\n${generationError}`,
+                    'Car Wash Notifications'
+                );
+                res.status(500).send();
+            }
         } else {
             res.status(304).send();
         }
     } catch (e) {
         console.log(e);
+        sendMessageToDiscord(`ERROR WITH CAR WASH: ${e}\n\nSignature (if exists): ${signature}`,'Car Wash Notifications');
         res.status(500).send();
     }
 });

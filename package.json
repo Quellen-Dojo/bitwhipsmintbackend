@@ -20,7 +20,6 @@
     "follow-redirects": "^1.14.7",
     "ipfs-http-client": "^56.0.0",
     "merge-images": "^2.0.0",
-    "mongoose": "^6.0.14",
-    "nft.storage": "^4.0.1"
+    "mongoose": "^6.0.14"
   }
 }

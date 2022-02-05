@@ -252,7 +252,7 @@ async function generateCleanUploadAndUpdate(metadata) {
 
 function validateWallet(wallet) {
     //In base58, there is no 0, O, l, or I in the wallet string.
-    const walletRegex = /^[\w^0OIl]{44}$/g; //44-length string with only alphanumeric characters and not the above characters
+    const walletRegex = /^[\w^0OIl]{43,44}$/g; //44-length string with only alphanumeric characters and not the above characters
     return walletRegex.test(wallet);
 }
 

@@ -168,16 +168,12 @@ function incrementWash() {
                 reject('Cannot find document');
             } else {
                 const newVal = doc.amount + 1;
-                await CarwashCount.updateOne({ id: carwashCountDoc }, { amount: newVal }).exec();
+                await CarwashCount.updateOne({ _id: carwashCountDoc }, { amount: newVal }).exec();
                 resolve(newVal);
             }
         });
     });
 }
-
-app.get('/increment', async (req, res) => {
-    res.json({ amount: await incrementWash() }).send();
-});
 
 /**
  * 

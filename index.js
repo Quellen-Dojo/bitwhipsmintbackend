@@ -236,7 +236,6 @@ async function generateCleanUploadAndUpdate(metadata) {
     const imageData = newImage.replace(/^data:image\/png;base64,/, '');
     const imageBuff = Buffer.from(imageData, 'base64');
 
-    // fs.writeFileSync(`./carwashOutput/${mintAddress}.png`, imageBuff);
     
     const ipfsCID = await IPFSClient.add(imageBuff, { pin: true });
     const newCIDStr = ipfsCID.cid.toV0().toString();
@@ -633,6 +632,26 @@ app.get('/getlinks', async (req, res) => {
         });
     } else {
         res.status(401).send();
+    }
+});
+
+app.post('/manualdiscwalletlink', async (req, res) => {
+    const { key, discordId, wallet } = req.body;
+    if (key == currentKey) {
+        try {
+            const existingDiscEntry = await BWDiscordLink.findOne({ discordId: discordId.toString() }).exec();
+            const existingWalletEntry = await BWDiscordLink.findOne({ wallet: wallet }).exec();
+            if (!existingDiscEntry && !existingWalletEntry) {
+                await BWDiscordLink.create({ discordId: discordId.toString(), wallet: wallet });
+                res.status(200).send();
+            } else {
+                res.status(409).send();
+            }
+        } catch {
+            res.status(500).send();
+        }
+    } else {
+        res.status(403).send();
     }
 });
 

@@ -728,7 +728,7 @@ app.post('/linkdiscord', async (req, res) => {
 
 app.post('/unlinkdiscord', async (req, res) => {
     const { key, discordId } = req.body;
-    if (key == currentKey) {
+    if (key == currentKey && discordId) {
         const dataRes = await BWDiscordLink.findOne({ discordId: discordId }).exec();
         if (dataRes) {
             await BWDiscordLink.deleteMany({discordId: discordId}).exec();

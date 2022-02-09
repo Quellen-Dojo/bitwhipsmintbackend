@@ -13,9 +13,12 @@ const mergeImages = require('merge-images');
 const { Canvas, Image } = require('canvas');
 const IPFS = require('ipfs-http-client');
 const { Wallet } = require('@project-serum/anchor');
+const DiscordOAuth = require('discord-oauth2');
 // const { File, NFTStorage } = require('nft.storage');
 
 const carwashCountDoc = process.env.carwashCountDoc;
+
+const whitelistSpots = 500;
 
 mongoose.connect(
     `mongodb+srv://quellen:${process.env.mongopass}@cluster0.jxtal.mongodb.net/dojodb?retryWrites=true&w=majority`,
@@ -450,6 +453,7 @@ async function walletInAirdrop(wallet) {
 /**
  * Huh?
  * @param {mongoose.Model} model 
+ * @returns {Promise<Number>}
  */
 async function getNumberInModel(model) {
     return await model.estimatedDocumentCount().exec();
@@ -699,21 +703,26 @@ app.get('/getlinkeddiscords', async (req, res) => {
 //Post
 app.post('/linkdiscord', async (req, res) => {
     const { discordId, wallet, key } = req.body;
-    if (key == currentKey) {
-        const checkRes = await checkDiscordLink(discordId,wallet);
-        const jsonRes = { exists: false, wallet: undefined, created: false};
-        if (checkRes.exists) {
-            jsonRes['exists'] = true;
-            jsonRes['wallet'] = checkRes['wallet'];
-            res.json(jsonRes).send();
+    try {
+        if (key == currentKey) {
+            const checkRes = await checkDiscordLink(discordId, wallet);
+            const whitelistedNum = await getNumberInModel(BWDiscordLink);
+            const jsonRes = { exists: false, wallet: undefined, created: false };
+            if (checkRes.exists && whitelistedNum < whitelistSpots) {
+                jsonRes['exists'] = true;
+                jsonRes['wallet'] = checkRes['wallet'];
+                res.json(jsonRes).send();
+            } else {
+                await BWDiscordLink.create({ discordId: discordId, wallet: wallet });
+                jsonRes['wallet'] = wallet;
+                jsonRes['created'] = true;
+                res.json(jsonRes).send();
+            }
         } else {
-            await BWDiscordLink.create({ discordId: discordId, wallet: wallet });
-            jsonRes['wallet'] = wallet;
-            jsonRes['created'] = true;
-            res.json(jsonRes).send();
+            res.status(401).send();
         }
-    } else {
-        res.status(401).send();
+    } catch {
+        res.status(500).send();
     }
 });
 

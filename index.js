@@ -76,9 +76,9 @@ const BWDiscordLink = mongoose.model('BitwhipsDiscordLink', DiscordLinkSchema);
 const CarwashCount = mongoose.model('CarwashCount', CarwashCountSchema);
 const LandevoMetadata = mongoose.model('LandevoMetadata', LandevoMetadataSchema);
 
-removeWeightRegex = /^([\w\s]+)/;
+const removeWeightRegex = /^([\w\s]+)/;
 
-const dirtyVersions = {
+const landevoDirtyVersions = {
     'Beach Carbon': ['Beach Carbon Dirty', 'Beach Carbon Patina Dirty', 'Beach Carbon Patina'],
     'Beach Clean': ['Beach Dirty', 'Beach Patina Dirty', 'Beach Patina'],
 
@@ -208,9 +208,9 @@ async function fetchMetadataOfToken(mintAddress) {
  * @param {string} trait_name
  */
 async function getCleanVersion(category,trait_name) {
-    for (trait of Object.keys(dirtyVersions)) {
+    for (trait of Object.keys(landevoDirtyVersions)) {
         try {
-            if (dirtyVersions[trait].includes(trait_name) && await findFileFromTrait(category, trait)) {
+            if (landevoDirtyVersions[trait].includes(trait_name) && await findFileFromTrait(category, trait)) {
                 return trait;
             }
         } catch {

@@ -606,7 +606,7 @@ app.post('/processcarwash', async (req, res) => {
         const to = txn.transaction.message.accountKeys[1];
         // Full price 200000000
         if (
-            validateTxnTransferAmounts(txn.meta.preBalances, txn.meta.postBalances, 1000000, txn.meta.fee) &&
+            validateTxnTransferAmounts(txn.meta.preBalances, txn.meta.postBalances, 200000000, txn.meta.fee) &&
             to.toBase58() === '8ciei6XBAgjLHJjfRYSXducTWzzA5JLY9GajCzYBhLit' &&
             fromWallet == from.toBase58() &&
             !tokenMeta['Washed']

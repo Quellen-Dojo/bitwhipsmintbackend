@@ -125,7 +125,6 @@ const landevoDirtyVersions = {
 
     'Blacked Out': ['Blacked Out Dirty'],
 
-    'Blue Clean': ['Blue Dirty'],
     'Limo Tint Clean': ['Limo Tint Dirty'],
     'Mirror Clean': ['Mirror Dirty'],
     'Normal Clean': ['Normal Dirty'],
@@ -142,29 +141,59 @@ const landevoDirtyVersions = {
     Stock: ['Stock Dirty'],
 };
 
-const alwaysClean = [
-    'Rally White',
-    'Rally Crint',
-    'Omnitrix',
-    'Reps Crint',
-    'Reps Green Clean',
-    'Reps Pink',
-    'Chameleon',
-];
+const teslerrDirtyVersions = {
+    'Black Clean Carbon': ['Black Dirty Carbon', 'Black Dirty Patina Carbon', 'Black Patina Carbon'],
+    'Black Clean': ['Black Dirty', 'Black Patina'],
 
-function findFileFromTrait(category, trait_name) {
+    'Blue Clean Carbon': ['Blue Dirty Carbon', 'Blue Dirty Patina Carbon', 'Blue Patina Carbon'],
+    'Blue Clean': ['Blue Dirty', 'Blue Patina'],
+
+    'Blue Fade Clean Carbon': ['Blue Fade Dirty Carbon', 'Blue Fade Dirty Patina Carbon', 'Blue Fade Patina Carbon'],
+    'Blue Fade Clean': ['Blue Fade Dirty', 'Blue Fade Patina'],
+
+    'Green Clean Carbon': ['Green Dirty Carbon', 'Green Dirty Patina Carbon', 'Green Patina Carbon'],
+    'Green Clean': ['Green Dirty', 'Green Patina'],
+
+    'Orange Clean Carbon': ['Orange Dirty Carbon', 'Orange Dirty Patina Carbon', 'Orange Patina Carbon'],
+    'Orange Clean': ['Orange Dirty', 'Orange Patina'],
+
+    'Pink Clean Carbon': ['Pink Dirty Carbon', 'Pink Dirty Patina Carbon', 'Pink Patina Carbon'],
+    'Pink Clean': ['Pink Dirty', 'Pink Patina'],
+
+    'Purple Clean Carbon': ['Purple Dirty Carbon', 'Purple Dirty Patina Carbon', 'Purple Patina Carbon'],
+    'Purple Clean': ['Purple Dirty', 'Purple Patina'],
+
+    'Red Clean Carbon': ['Red Dirty Carbon', 'Red Dirty Patina Carbon', 'Red Patina Carbon'],
+    'Red Clean': ['Red Dirty', 'Red Patina'],
+
+    'Rinbow Clean Carbon': ['Rinbow Dirty Carbon', 'Rinbow Dirty Patina Carbon', 'Rinbow Patina Carbon'],
+    'Rinbow Clean': ['Rinbow Dirty', 'Rinbow Patina'],
+
+    'Sunset Clean Carbon': ['Sunset Dirty Carbon', 'Sunset Dirty Patina Carbon', 'Sunset Patina Carbon'],
+    'Sunset Clean': ['Sunset Dirty', 'Sunset Patina'],
+
+    'Teal Clean Carbon': ['Teal Dirty Carbon', 'Teal Dirty Patina Carbon', 'Teal Patina Carbon'],
+    'Teal Clean': ['Teal Dirty', 'Teal Patina'],
+
+    'Yellow Clean Carbon': ['Yellow Dirty Carbon', 'Yellow Dirty Patina Carbon', 'Yellow Patina Carbon'],
+    'Yellow Clean': ['Yellow Dirty', 'Yellow Patina'],    
+};
+
+function findFileFromTrait(category, trait_name, carType) {
     return new Promise((resolve, reject) => {
-        fs.readdir(`./landevo_layers/${category}/`, (err, files) => {
+        fs.readdir(`./${carType}_layers/${category}/`, (err, files) => {
             if (err) {
                 reject(`Error locating category ${category}`);
             } else {
-                for (file of files) {
+                for (const file of files) {
                     if (file.match(removeWeightRegex)[0] === trait_name) {
-                        // console.log(file);
+                        console.log(file);
                         resolve(file);
+                        return;
                     }
                 }
                 reject(`Could not find trait {trait_type: '${category}', value: ${trait_name}}`);
+                return;
             }
         });
     });
@@ -206,42 +235,67 @@ async function fetchMetadataOfToken(mintAddress) {
 /**
  *
  * @param {string} trait_name
+ * @param {'landevo' | 'teslerr'} carType
  */
-async function getCleanVersion(category,trait_name) {
-    for (trait of Object.keys(landevoDirtyVersions)) {
-        try {
-            if (landevoDirtyVersions[trait].includes(trait_name) && await findFileFromTrait(category, trait)) {
-                return trait;
+async function getCleanVersion(category, trait_name, carType) {
+
+    //Special case that needs to be overridden since @Oil duplicated file names for Landevos
+    if (category === 'Tint' && trait_name === 'Blue Dirty' && carType === 'landevo') { return 'Blue Clean'; }
+
+    let cleanTable;
+    switch (carType) {
+        case 'landevo':
+            cleanTable = landevoDirtyVersions;
+        case 'teslerr':
+            cleanTable = teslerrDirtyVersions;
+    }
+
+    if (cleanTable) {
+        for (const [cleanTrait, array] of Object.entries(cleanTable)) {
+            /*
+            await findFile handles duplicate 'Dirty' names conformation.
+            'Stock Dirty' exists for both Wheels and FogLights
+            */
+            if (array.includes(trait_name) && await findFileFromTrait(category,cleanTrait,carType)) {
+                return cleanTrait;
             }
-        } catch {
-            continue;
         }
+    } else {
+        throw new Error('cleanTable was never set! (getCleanVerison)');
     }
     return trait_name;
 }
 
-async function generateCleanUploadAndUpdate(metadata) {
+/**
+ * 
+ * @param {object} metadata 
+ * @param {string} carType 
+ * @returns 
+ */
+async function generateCleanUploadAndUpdate(metadata,carType) {
     let newMetadata = {};
     let pureNewAttributes = [];
     const mintAddress = metadata['mint'];
     const imageSources = [];
     for (const trait of metadata['attributes']) {
-        const cleanVersionTrait = await getCleanVersion(trait['trait_type'],trait['value']);
+        const cleanVersionTrait = await getCleanVersion(trait['trait_type'],trait['value'],carType);
         newMetadata[trait['trait_type']] = cleanVersionTrait;
-        imageSources.push('./landevo_layers/' + trait['trait_type'] + '/' + (await findFileFromTrait(trait['trait_type'], cleanVersionTrait)));
+        imageSources.push(`./${carType}_layers/` + trait['trait_type'] + '/' + (await findFileFromTrait(trait['trait_type'], cleanVersionTrait,carType)));
         pureNewAttributes.push({ trait_type: trait['trait_type'], value: cleanVersionTrait });
     }
 
-    imageSources.push('./landevo_layers/Washed/Washed.png')
-    pureNewAttributes.push({ trait_type: 'Washed', value: `Ticket Number: ${await incrementWash()}` });
+    imageSources.push(`./${carType}_layers/Washed/Washed.png`)
 
     const newImage = await mergeImages(imageSources, {Canvas: Canvas, Image: Image});
     const imageData = newImage.replace(/^data:image\/png;base64,/, '');
     const imageBuff = Buffer.from(imageData, 'base64');
 
+    // fs.writeFileSync(`./debugOutput/${mintAddress}.png`, imageBuff);
     
-    const ipfsCID = await IPFSClient.add(imageBuff, { pin: true });
-    const newCIDStr = ipfsCID.cid.toV0().toString();
+    pureNewAttributes.push({ trait_type: 'Washed', value: `Ticket Number: ${await incrementWash()}` });
+
+    const ipfsPNGCID = await IPFSClient.add(imageBuff, { pin: true });
+    const newCIDStr = ipfsPNGCID.cid.toV0().toString();
     console.log(`IPFS PNG CID: ${newCIDStr}`);
 
     metadata['attributes'] = pureNewAttributes;
@@ -539,7 +593,7 @@ app.get('/fulllandevodata', async (req, res) => {
 });
 
 app.post('/processcarwash', async (req, res) => {
-    const { signature, nft, fromWallet } = req.body;
+    const { signature, nft, fromWallet, type } = req.body;
     try {
         // console.log(nft);
         await sleep(2000);
@@ -550,15 +604,16 @@ app.post('/processcarwash', async (req, res) => {
         console.log(txn);
         const from = txn.transaction.message.accountKeys[0];
         const to = txn.transaction.message.accountKeys[1];
+        // Full price 200000000
         if (
-            validateTxnTransferAmounts(txn.meta.preBalances, txn.meta.postBalances, 200000000, txn.meta.fee) &&
+            validateTxnTransferAmounts(txn.meta.preBalances, txn.meta.postBalances, 1000000, txn.meta.fee) &&
             to.toBase58() === '8ciei6XBAgjLHJjfRYSXducTWzzA5JLY9GajCzYBhLit' &&
             fromWallet == from.toBase58() &&
             !tokenMeta['Washed']
         ) {
             //update metadata here!
             try {
-                await generateCleanUploadAndUpdate(tokenMeta);
+                await generateCleanUploadAndUpdate(tokenMeta, type);
                 res.status(200).send();
             } catch (generationError) {
                 sendMessageToDiscord(

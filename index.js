@@ -855,6 +855,21 @@ app.get('/walletbydiscord', async (req, res) => {
     }
 });
 
+app.get('/discordbywallet', async (req, res) => {
+    const { key, wallet } = req.query;
+    if (key == currentKey) {
+        BWDiscordLink.find({ wallet: wallet }, (err, doc) => {
+            if (err) {
+                res.status(404).send();
+            } else {
+                res.json({ wallet: doc[0].discordId }).send();
+            }
+        });
+    } else {
+        res.status(401).send();
+    }
+});
+
 app.get('/checkairdrop', async (req, res) => {
     const { wallet, key } = req.query;
     if (checkingWhitelist) {

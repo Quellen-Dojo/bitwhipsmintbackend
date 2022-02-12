@@ -65,7 +65,7 @@ const CarwashCountSchema = new Schema({
     amount: Number
 });
 
-const LandevoMetadataSchema = new Schema({
+const NFTMetadataSchema = new Schema({
     mintAddress: String,
     metadata: Object
 });
@@ -74,7 +74,8 @@ const WhitelistSeries1 = mongoose.model('Whitelist', WhitelistSchema);
 const AirdropsSeries1 = mongoose.model('AirdropS1', WhitelistSchema);
 const BWDiscordLink = mongoose.model('BitwhipsDiscordLink', DiscordLinkSchema);
 const CarwashCount = mongoose.model('CarwashCount', CarwashCountSchema);
-const LandevoMetadata = mongoose.model('LandevoMetadata', LandevoMetadataSchema);
+const LandevoMetadata = mongoose.model('LandevoMetadata', NFTMetadataSchema);
+const TeslerrMetadata = mongoose.model('TeslerrMetadata', NFTMetadataSchema);
 
 const removeWeightRegex = /^([\w\s]+)/;
 
@@ -219,12 +220,20 @@ function findFileFromTrait(category, trait_name, carType) {
 }
 
 async function createLandevoMetadataMongo(mint, metadata) {
-    const res = await LandevoMetadata.create({ mintAddress: mint, metadata: metadata });
+    const res = await TeslerrMetadata.create({ mintAddress: mint, metadata: metadata });
     return res;
 }
 
-async function updateLandevoMetadataMongo(mint, newmetadata) {
-    const res = await LandevoMetadata.updateOne({ mintAddress: mint }, { metadata: newmetadata }).exec();
+async function updateNFTMetadataMongo(mint, newmetadata, carType) {
+    let res;
+    switch (carType) {
+        case 'landevo':
+            res = await LandevoMetadata.updateOne({ mintAddress: mint }, { metadata: newmetadata }).exec();
+            break;
+        case 'teslerr':
+            res = await TeslerrMetadata.updateOne({ mintAddress: mint }, { metadata: newmetadata }).exec();
+            break;
+    }
     return res;
 }
 
@@ -334,7 +343,7 @@ async function generateCleanUploadAndUpdate(metadata,carType) {
 
     console.log(`Update sig for ${mintAddress}: ${updateSig}`);
 
-    await updateLandevoMetadataMongo(mintAddress, metadata);
+    await updateNFTMetadataMongo(mintAddress, metadata,carType);
 
     return updateSig;
 }
@@ -570,9 +579,10 @@ app.get('/ping', (req, res) => {
 // app.post('/submit', async (req, res) => {
 //     const { list } = req.body;
 //     try {
-//         for (hash of list) {
+//         for (const hash of list) {
 //             const metadata = await fetchMetadataOfToken(hash);
-//             console.log(await createLandevoMetadataMongo(hash, metadata));
+//             await createLandevoMetadataMongo(hash, metadata);
+//             console.log(`Created metadata for #${metadata.edition}`)
 //         }
 //     } catch (error) {
 //         console.log(error);
@@ -595,6 +605,24 @@ app.get('/fulllandevodata', async (req, res) => {
         try {
             const metadataList = [];
             const docs = await LandevoMetadata.find({}).exec();
+            for (doc of docs) {
+                metadataList.push(doc.metadata);
+            }
+            res.json(metadataList).send();
+        } catch {
+            res.status(500).send();
+        }
+    } else {
+        res.status(403).send();
+    }
+});
+
+app.get('/fullteslerrdata', async (req, res) => {
+    const { key } = req.query;
+    if (key == currentKey) {
+        try {
+            const metadataList = [];
+            const docs = await TeslerrMetadata.find({}).exec();
             for (doc of docs) {
                 metadataList.push(doc.metadata);
             }

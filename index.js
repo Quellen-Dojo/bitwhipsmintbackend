@@ -14,11 +14,10 @@ const { Canvas, Image } = require('canvas');
 const IPFS = require('ipfs-http-client');
 const { Wallet } = require('@project-serum/anchor');
 const DiscordOAuth = require('discord-oauth2');
-// const { File, NFTStorage } = require('nft.storage');
 
 const carwashCountDoc = process.env.carwashCountDoc;
 
-const whitelistSpots = 500;
+const whitelistSpots = 600;
 
 mongoose.connect(
     `mongodb+srv://quellen:${process.env.mongopass}@cluster0.jxtal.mongodb.net/dojodb?retryWrites=true&w=majority`,
@@ -319,27 +318,25 @@ async function generateCleanUploadAndUpdate(metadata,carType) {
     pureNewAttributes.push({ trait_type: 'Washed', value: `Ticket Number: ${await incrementWash()}` });
 
     const ipfsPNGCID = await IPFSClient.add(imageBuff, { pin: true });
-    const newCIDStr = ipfsPNGCID.cid.toV0().toString();
-    console.log(`IPFS PNG CID: ${newCIDStr}`);
+    const pngV0CIDStr = ipfsPNGCID.cid.toV0().toString();
+    console.log(`IPFS PNG CID: ${pngV0CIDStr}`);
 
     metadata['attributes'] = pureNewAttributes;
-    metadata['image'] = 'https://ipfs.infura.io/ipfs/' + newCIDStr;
+    metadata['image'] = 'https://ipfs.infura.io/ipfs/' + pngV0CIDStr;
 
-    sendMessageToDiscord(`New Car washed! ${'https://ipfs.infura.io/ipfs/' + newCIDStr}`, 'Car Wash Notifications');
+    sendMessageToDiscord(`New Car washed! ${'https://ipfs.infura.io/ipfs/' + pngV0CIDStr}`, 'Car Wash Notifications');
 
-    metadata['properties']['files'][0]['uri'] = 'https://ipfs.infura.io/ipfs/' + newCIDStr;
+    metadata['properties']['files'][0]['uri'] = 'https://ipfs.infura.io/ipfs/' + pngV0CIDStr;
     delete metadata.mint;
 
     const newJSONCID = await IPFSClient.add(JSON.stringify(metadata), { pin: true });
     console.log(`JSON CID: ${newJSONCID.cid.toV0().toString()}`);
-    console.log('Uploaded JSON!');
 
-    const mintKey = new PublicKey(mintAddress);
-    const topLevelMetadata = await Metadata.load(rpcConn, await Metadata.getPDA(mintKey));
+    const mintAddressPublicKey = new PublicKey(mintAddress);
+    const topLevelMetadata = await Metadata.load(rpcConn, await Metadata.getPDA(mintAddressPublicKey));
     const topLevelDataData = topLevelMetadata.data.data;
     topLevelDataData.uri = 'https://ipfs.infura.io/ipfs/' + newJSONCID.cid.toV0().toString();
-    console.log(topLevelDataData);
-    const updateSig = await actions.updateMetadata({ connection: rpcConn, wallet: treasuryWallet, editionMint: mintKey, newMetadataData: topLevelDataData, });
+    const updateSig = await actions.updateMetadata({ connection: rpcConn, wallet: treasuryWallet, editionMint: mintAddressPublicKey, newMetadataData: topLevelDataData, });
 
     console.log(`Update sig for ${mintAddress}: ${updateSig}`);
 
@@ -354,7 +351,7 @@ function validateWallet(wallet) {
     return walletRegex.test(wallet);
 }
 
-function sendMessageToDiscord(message, username) {
+function sendMessageToDiscord(message, username,avatarImageUrl='') {
     const discordMsg = https.request(
         process.env.discordWebhook,
         { method: 'POST', headers: { 'Content-Type': 'application/json' } }
@@ -362,7 +359,7 @@ function sendMessageToDiscord(message, username) {
     discordMsg.write(
         JSON.stringify({
             username: username,
-            avatar_url: '',
+            avatar_url: avatarImageUrl,
             content: message,
         })
     );
@@ -442,7 +439,7 @@ function getAllMetadataFromArrayOfMints(mints, topLevel = false) {
      * @param {string} hash
      * @param {boolean?} topLevel 
      */
-    const appendTopLevelMetadata = (data,hash, topLevel) => { 
+    const appendTopLevelMetadata = (data, hash, topLevel) => { 
         if (!topLevel) { return data; } else {
             data['mint'] = hash;
         }
@@ -466,22 +463,22 @@ function getAllMetadataFromArrayOfMints(mints, topLevel = false) {
             console.log(`Wallet has ${BitWhips.length} BitWhips`)
             resolve(BitWhips);
         } catch (e2) {
-            console.log(`Error in grabbing all metadata: ${e2}`);
-            reject(undefined);
+            console.log(`Error in grabbing metadata from list: ${e2}`);
+            reject(e2.toString());
         }
     });
 }
 
 /**
  * 
- * @param {Array} requestJson 
+ * @param {Array} paramsArray 
  * @param {string} httpMethod 
  * @param {string} rpcFunction 
  * @returns {Promise<object>}
  */
-function sendJSONRPCRequest(requestJson,httpMethod,rpcFunction) {
+function sendJSONRPCRequest(paramsArray,httpMethod,rpcFunction) {
     return new Promise((resolve, reject) => {
-        const baseReq = { jsonrpc: '2.0', id: 1, method: rpcFunction, params: [...requestJson,{ encoding: 'jsonParsed' }] };
+        const baseReq = { jsonrpc: '2.0', id: 1, method: rpcFunction, params: [...paramsArray,{ encoding: 'jsonParsed' }] };
         const newReq = https.request(process.env.rpcEndpoint, { method: httpMethod, headers: { 'Content-Type': 'application/json' } }, (res) => {
             let data = '';
             res.on('data', (d) => data += d.toString());
@@ -529,7 +526,7 @@ async function walletInAirdrop(wallet) {
 }
 
 /**
- * Huh?
+ * Return how many documents exists in the given Model
  * @param {mongoose.Model} model 
  * @returns {Promise<Number>}
  */
@@ -537,23 +534,29 @@ async function getNumberInModel(model) {
     return await model.estimatedDocumentCount().exec();
 }
 
+/**
+ * 
+ * @param {Number} ms 
+ * @returns {Promise<void>}
+ */
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function retryGetTransaction(sig) {
-    let tries = 0;
-    while (tries < 4) {
+/**
+ * 
+ * @param {String} signature 
+ */
+async function retryGetTransaction(signature,retries=4) {
+    for (let i = 0; i < retries; i++) {
         try {
-            const txn = await rpcConn.getTransaction(sig);
+            const txn = await rpcConn.getTransaction(signature);
             console.log(txn);
             if (txn) {
                 return txn;
             }
-            continue;
         } catch (e) {
-            console.log(e);
-            tries += 1;
+            // console.log(e);
         }
         await sleep(1000);
     }
@@ -561,7 +564,7 @@ async function retryGetTransaction(sig) {
 }
 
 /**
- * 
+ * Verify that the number of 'lamports' matches the pre and post balances
  * @param {[Number,Number,Number]} preBalances 
  * @param {[Number,Number,Number]} postBalances 
  * @param {Number} lamports 
@@ -765,7 +768,7 @@ app.get('/gets1airdrop', async (req, res) => {
             if (err) {
                 res.status(500).send();
             } else {
-                res.json(doc.map((v, i) => v.wallet)).send();
+                res.json(doc.map((v) => v.wallet)).send();
                 res.status(200).send();
             }
         });
@@ -791,7 +794,7 @@ app.get('/getlinkeddiscords', async (req, res) => {
             if (err) {
                 res.status(500).send();
             } else {
-                res.json(doc.map((v, i) => v.discordId)).send();
+                res.json(doc.map((v) => v.discordId)).send();
             } 
         });
     } else {
@@ -905,47 +908,5 @@ app.post('/rollkey', async (req, res) => {
         currentKey = newKey;
     }
  });
-
-
-
-app.post('/addtowhitelist', async (req, res) => {
-    const { key, wallet, list } = req.body;
-    if (key == currentKey) {
-        if (wallet) {
-            if (!(await walletInWhitelist(wallet))) {
-                try {
-                    await WhitelistSeries1.create({ wallet: wallet, series: 1 });
-                    res.status(200).send();
-                } catch (e) {
-                    res.status(500).send();
-                }
-            } else {
-                res.status(409).send();
-            }
-        }
-    } else {
-        res.status(401).send();
-    }
-});
-
-app.post('/addtoairdrop', async (req, res) => {
-    const { key, wallet, list } = req.body;
-    if (key == currentKey) {
-        if (wallet) {
-            if (!(await walletInAirdrop(wallet))) {
-                try {
-                    await AirdropsSeries1.create({ wallet: wallet, series: 1 });
-                    res.status(200).send();
-                } catch (e) {
-                    res.status(500).send();
-                }
-            } else {
-                res.status(409).send();
-            }
-        }
-    } else {
-        res.status(401).send();
-    }
-});
 
 app.listen(process.env.PORT || 3002, () => console.log('Listening...'));

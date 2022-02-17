@@ -809,16 +809,21 @@ app.post('/linkdiscord', async (req, res) => {
         if (key == currentKey) {
             const checkRes = await checkDiscordLink(discordId, wallet);
             const whitelistedNum = await getNumberInModel(BWDiscordLink);
-            const jsonRes = { exists: false, wallet: undefined, created: false };
-            if (checkRes.exists && whitelistedNum < whitelistSpots) {
-                jsonRes['exists'] = true;
-                jsonRes['wallet'] = checkRes['wallet'];
-                res.json(jsonRes).send();
+            const jsonRes = { exists: false, wallet: undefined, created: false, closed: false };
+            if (whitelistedNum < whitelistSpots) {
+                if (checkRes.exists) {
+                    jsonRes['exists'] = true;
+                    jsonRes['wallet'] = checkRes['wallet'];
+                    res.json(jsonRes).send();
+                } else {
+                    await BWDiscordLink.create({ discordId: discordId, wallet: wallet });
+                    jsonRes['wallet'] = wallet;
+                    jsonRes['created'] = true;
+                    res.json(jsonRes).send();
+                }
             } else {
-                await BWDiscordLink.create({ discordId: discordId, wallet: wallet });
-                jsonRes['wallet'] = wallet;
-                jsonRes['created'] = true;
-                res.json(jsonRes).send();
+                jsonRes['closed'] = true;
+                res.json(jsonRes)
             }
         } else {
             res.status(401).send();

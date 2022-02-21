@@ -17,7 +17,7 @@ const DiscordOAuth = require('discord-oauth2');
 
 const carwashCountDoc = process.env.carwashCountDoc;
 
-const whitelistSpots = 600;
+const whitelistSpots = 700;
 
 mongoose.connect(
     `mongodb+srv://quellen:${process.env.mongopass}@cluster0.jxtal.mongodb.net/dojodb?retryWrites=true&w=majority`,

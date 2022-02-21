@@ -745,7 +745,7 @@ app.post('/manualdiscwalletlink', async (req, res) => {
     const { key, discordId, wallet } = req.body;
     if (key == currentKey) {
         try {
-            const existingDiscEntry = await BWDiscordLink.findOne({ discordId: discordId.toString() }).exec();
+            const existingDiscEntry = await BWDiscordLink.findOne({ discordId: discordId }).exec();
             const existingWalletEntry = await BWDiscordLink.findOne({ wallet: wallet }).exec();
             if (!existingDiscEntry && !existingWalletEntry) {
                 await BWDiscordLink.create({ discordId: discordId.toString(), wallet: wallet });

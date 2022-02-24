@@ -15,6 +15,8 @@ const IPFS = require('ipfs-http-client');
 const { Wallet } = require('@project-serum/anchor');
 const DiscordOAuth = require('discord-oauth2');
 
+// Require tweetnacl and bs58 to verify signatures.
+
 const carwashCountDoc = process.env.carwashCountDoc;
 
 const whitelistSpots = 700;
@@ -71,7 +73,10 @@ const NFTMetadataSchema = new Schema({
 
 const WhitelistSeries1 = mongoose.model('Whitelist', WhitelistSchema);
 const AirdropsSeries1 = mongoose.model('AirdropS1', WhitelistSchema);
+
 const BWDiscordLink = mongoose.model('BitwhipsDiscordLink', DiscordLinkSchema);
+const BWHolderLink = mongoose.model('BitwhipsHolderLink', DiscordLinkSchema);
+
 const CarwashCount = mongoose.model('CarwashCount', CarwashCountSchema);
 const LandevoMetadata = mongoose.model('LandevoMetadata', NFTMetadataSchema);
 const TeslerrMetadata = mongoose.model('TeslerrMetadata', NFTMetadataSchema);
@@ -366,6 +371,21 @@ function sendMessageToDiscord(message, username,avatarImageUrl='') {
     discordMsg.end();
 }
 
+function sendHolderMessageToDiscord(message, username, avatarImageUrl = '') {
+    const discordMsg = https.request(process.env.holderWebhook, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+    });
+    discordMsg.write(
+        JSON.stringify({
+            username: username,
+            avatar_url: avatarImageUrl,
+            content: message,
+        })
+    );
+    discordMsg.end();
+}
+
 //Check if discord link already exists
 async function checkDiscordLink(discordId,wallet=null) {
     ret = {exists: false, wallet: undefined}
@@ -404,25 +424,24 @@ function redirectThroughArweave(url) {
  * @returns {boolean}
  */
 function verifyMetadata(metadata) {
-    const treasury = 'CCw23HjhwKxxwCKdV3QUQt4XYGcQNLJPCm9rek3wkcNo';
-    const royalties = 'Ek4Q2tAt3vyhyN59G1EGUxRSZzYwnLSNDrYKF8AsLsNH';
-    const candyMachineCreator = 'GXLsCeRw6Gz6o1zGewy951GgKnZHn7k4go6g9HmHjFvh';
+
+    const allowedOwners = [
+        'CCw23HjhwKxxwCKdV3QUQt4XYGcQNLJPCm9rek3wkcNo', // Treasury
+        'Ek4Q2tAt3vyhyN59G1EGUxRSZzYwnLSNDrYKF8AsLsNH', // Royalties
+        'GXLsCeRw6Gz6o1zGewy951GgKnZHn7k4go6g9HmHjFvh', // Series 1 Candy Machine
+        'D2aTkRnffuSDaoqzAEHsD4xYfutk3bVpK93uMcuFxw65', // Series 2 Candy Machine
+    ];
+
     let valid = true;
     try {
         if (
-            (metadata.data.data.creators[0]['address'] !== treasury &&
-                metadata.data.data.creators[0]['address'] !== royalties &&
-                metadata.data.data.creators[0]['address'] !== candyMachineCreator) ||
-            (metadata.data.data.creators[1]['address'] !== treasury &&
-                metadata.data.data.creators[1]['address'] !== royalties &&
-                metadata.data.data.creators[1]['address'] !== candyMachineCreator) ||
-            (metadata.data.data.creators[2] != undefined && (metadata.data.data.creators[2]['address'] !== treasury &&
-                metadata.data.data.creators[2]['address'] !== royalties &&
-                metadata.data.data.creators[2]['address'] !== candyMachineCreator))
+            !allowedOwners.includes(metadata.data.data.creators[0].address) ||
+            !allowedOwners.includes(metadata.data.data.creators[1].address) ||
+            !allowedOwners.includes(metadata.data.data.creators[2].address)
         ) {
             valid = false;
         }
-        if (metadata.data.updateAuthority !== treasury) {
+        if (metadata.data.updateAuthority !== allowedOwners[0]) {
             valid = false;
         }
     } catch {
@@ -575,6 +594,32 @@ function validateTxnTransferAmounts(preBalances, postBalances, lamports, fee) {
     return (preBalances[0] - postBalances[0]  === lamports + fee && postBalances[1] - preBalances[1] === lamports)
 }
 
+/**
+ * 
+ * @param {string} discordId 
+ * @param {string} wallet 
+ * @returns 
+ */
+async function processHolderSubmission(discordId, wallet) {
+    const pubkey = new PublicKey(wallet);
+    const accs = await sendJSONRPCRequest([wallet, { programId: TOKEN_PROGRAM_ID.toBase58() }], 'POST', 'getTokenAccountsByOwner');
+    const tokenMints = accs.result.value
+        .filter(v => v.account.data.parsed.info.tokenAmount.amount > 0)
+        .map(v => v.account.data.parsed.info.mint);
+    
+    for (mint of tokenMints) {
+        try {
+            const meta = await Metadata.load(rpcConn, await Metadata.getPDA(mint));
+            if (verifyMetadata(meta)) {
+                return true;
+            }
+        } catch {
+
+        }
+    }
+    return false;
+}
+
 app.get('/ping', (req, res) => {
     res.send('Pong!');
 });
@@ -592,6 +637,40 @@ app.get('/ping', (req, res) => {
 //         res.status(500).send();
 //     }
 // });
+
+app.post('/submitForHolderVerif', async (req, res) => {
+    const { discordId, wallet, signature } = req.body;
+    const jsonRes = { error: null, exists: false, created: false };
+    if (discordId && wallet) {
+        try {
+            const walletCheckRes = await BWHolderLink.findOne({ wallet: wallet }).exec();
+            if (!walletCheckRes) {
+                // await BWHolderLink.create({ discordId: discordId, wallet: wallet });
+                jsonRes.created = true;
+                if (await processHolderSubmission(discordId, wallet)) {
+                    // Submit Request to update roles.
+                    sendHolderMessageToDiscord(`${discordId} ${wallet} ${signature}`, 'Holder Verification');
+                }
+            } else {
+                jsonRes.exists = true;
+            }
+        } catch (e) {
+            console.log(e);
+            jsonRes.error = true;
+        }
+        res.json(jsonRes).send();
+    }
+});
+
+// TODO
+app.post('/unlinkholder', async (req, res) => {
+    res.status(200).send();
+});
+
+app.post('/updateRoles', async (req, res) => {
+    res.status(200).send();
+});
+// END TODO
 
 app.get('/washedcars', async (req, res) => {
     try {
@@ -802,6 +881,33 @@ app.get('/getlinkeddiscords', async (req, res) => {
     }
 });
 
+app.post('/getIdFromCode', async (req, res) => {
+    try {
+        const oauth2 = new DiscordOAuth({
+            clientId: '940761522781683793',
+            clientSecret: process.env.holderVerifSecret,
+            redirectUri: process.env.holderVerifRedirect,
+            requestTimeout: 10000,
+        });
+
+        const { code } = req.body;
+
+        if (code) {
+            const tokenRes = await oauth2.tokenRequest({ code: code, grantType: 'authorization_code', scope: 'identify' });
+
+            const accessToken = tokenRes.access_token;
+
+            const user = await oauth2.getUser(accessToken);
+
+            res.json({ discordId: user.id }).send();
+        } else {
+            res.status(400).send();
+        }
+    } catch (e) {
+        res.status(500).send();
+    }
+});
+
 //Post
 app.post('/linkdiscord', async (req, res) => {
     const { discordId, wallet, key } = req.body;
@@ -823,7 +929,7 @@ app.post('/linkdiscord', async (req, res) => {
                 }
             } else {
                 jsonRes['closed'] = true;
-                res.json(jsonRes)
+                res.json(jsonRes).send();
             }
         } else {
             res.status(401).send();

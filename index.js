@@ -14,6 +14,9 @@ const { Canvas, Image } = require('canvas');
 const IPFS = require('ipfs-http-client');
 const { Wallet } = require('@project-serum/anchor');
 const DiscordOAuth = require('discord-oauth2');
+const bs58 = require('bs58');
+const tweetnacl = require('tweetnacl');
+
 
 // Require tweetnacl and bs58 to verify signatures.
 
@@ -641,7 +644,7 @@ app.get('/ping', (req, res) => {
 app.post('/submitForHolderVerif', async (req, res) => {
     const { discordId, wallet, signature } = req.body;
     const jsonRes = { error: null, exists: false, created: false };
-    if (discordId && wallet) {
+    if (discordId && wallet && tweetnacl.sign.detached.verify(new TextEncoder().encode('I AM MY BITWHIP AND MY BITWHIP IS ME!'),bs58.decode(signature),bs58.decode(wallet))) {
         try {
             const walletCheckRes = await BWHolderLink.findOne({ wallet: wallet }).exec();
             if (!walletCheckRes) {
@@ -899,7 +902,7 @@ app.post('/getIdFromCode', async (req, res) => {
 
             const user = await oauth2.getUser(accessToken);
 
-            res.json({ discordId: user.id }).send();
+            res.json({ discordId: user.id, username: `${user.username}#${user.discriminator}` }).send();
         } else {
             res.status(400).send();
         }

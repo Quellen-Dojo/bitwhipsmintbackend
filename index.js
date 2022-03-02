@@ -206,6 +206,15 @@ const teslerrDirtyVersions = {
     }
 };
 
+const treeFiddyDirtyVersions = {
+    Dirt: {
+        'Clean': ['Dirty']
+    },
+    Patina: {
+        'None': ['Patina']
+    }
+};
+
 function findFileFromTrait(category, trait_name, carType) {
     return new Promise((resolve, reject) => {
         fs.readdir(`./${carType}_layers/${category}/`, (err, files) => {
@@ -281,6 +290,9 @@ async function getCleanVersion(category, trait_name, carType) {
         case 'teslerr':
             cleanTable = teslerrDirtyVersions;
             break;
+        case 'treefiddy':
+            cleanTable = treeFiddyDirtyVersions;
+            break;
     }
 
     if (cleanTable) {
@@ -348,7 +360,7 @@ async function generateCleanUploadAndUpdate(metadata,carType) {
 
     console.log(`Update sig for ${mintAddress}: ${updateSig}`);
 
-    await updateNFTMetadataMongo(mintAddress, metadata,carType);
+    await updateNFTMetadataMongo(mintAddress, metadata, carType);
 
     return updateSig;
 }

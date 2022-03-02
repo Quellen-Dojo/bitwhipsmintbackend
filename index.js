@@ -440,14 +440,15 @@ function verifyMetadata(metadata) {
         if (
             !allowedOwners.includes(metadata.data.data.creators[0].address) ||
             !allowedOwners.includes(metadata.data.data.creators[1].address) ||
-            !allowedOwners.includes(metadata.data.data.creators[2].address)
+            (metadata.data.data.creators[2] && !allowedOwners.includes(metadata.data.data.creators[2].address))
         ) {
             valid = false;
         }
         if (metadata.data.updateAuthority !== allowedOwners[0]) {
             valid = false;
         }
-    } catch {
+    } catch (e) {
+        console.log(e);
         return false;
     }
     return valid;
@@ -611,7 +612,7 @@ async function processHolderSubmission(discordId, wallet) {
         .map(v => v.account.data.parsed.info.mint);
     
     let numOf = 0;
-    for (mint of tokenMints) {
+    for (const mint of tokenMints) {
         try {
             const meta = await Metadata.load(rpcConn, await Metadata.getPDA(mint));
             if (verifyMetadata(meta)) {

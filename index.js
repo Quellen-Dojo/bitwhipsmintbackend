@@ -610,17 +610,18 @@ async function processHolderSubmission(discordId, wallet) {
         .filter(v => v.account.data.parsed.info.tokenAmount.amount > 0)
         .map(v => v.account.data.parsed.info.mint);
     
+    let numOf = 0;
     for (mint of tokenMints) {
         try {
             const meta = await Metadata.load(rpcConn, await Metadata.getPDA(mint));
             if (verifyMetadata(meta)) {
-                return true;
+                numOf += 1;
             }
         } catch {
 
         }
     }
-    return false;
+    return numOf;
 }
 
 app.get('/ping', (req, res) => {
@@ -650,9 +651,10 @@ app.post('/submitForHolderVerif', async (req, res) => {
             if (!walletCheckRes) {
                 // await BWHolderLink.create({ discordId: discordId, wallet: wallet });
                 jsonRes.created = true;
-                if (await processHolderSubmission(discordId, wallet)) {
+                const holdingNum = await processHolderSubmission(discordId, wallet);
+                if (holdingNum > 0) {
                     // Submit Request to update roles.
-                    sendHolderMessageToDiscord(`${discordId} ${wallet} ${signature}`, 'Holder Verification');
+                    sendHolderMessageToDiscord(`${discordId} ${wallet} ${signature} ${holdingNum}`, 'Holder Verification');
                 }
             } else {
                 jsonRes.exists = true;

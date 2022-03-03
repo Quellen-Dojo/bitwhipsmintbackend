@@ -612,7 +612,6 @@ function validateTxnTransferAmounts(preBalances, postBalances, lamports, fee) {
 
 /**
  * 
- * @param {string} discordId 
  * @param {string} wallet 
  * @returns 
  */
@@ -678,26 +677,28 @@ app.post('/recheckHolders', async (req, res) => {
 
 app.post('/submitForHolderVerif', async (req, res) => {
     const { discordId, wallet, signature } = req.body;
-    const jsonRes = { error: null, exists: false, created: false };
+    const jsonRes = { error: null, success: false };
     if (discordId && wallet && tweetnacl.sign.detached.verify(new TextEncoder().encode('I AM MY BITWHIP AND MY BITWHIP IS ME!'),bs58.decode(signature),bs58.decode(wallet))) {
         try {
-            const walletCheckRes = await BWHolderLink.findOne({ wallet: wallet }).exec();
-            if (!walletCheckRes) {
-                BWHolderLink.create({ discordId: discordId, wallet: wallet });
-                jsonRes.created = true;
-                const holdingNum = await getAmountOfBitWhips(wallet);
-                if (holdingNum > 0) {
-                    // Submit Request to update roles.
-                    sendHolderMessageToDiscord(`${discordId} ${wallet} ${signature} ${holdingNum}`, 'Holder Verification');
-                }
+            const walletCheckRes = await BWHolderLink.findOne({ discordId: discordId }).exec();
+            if (walletCheckRes) {
+                await BWHolderLink.updateMany({ discordId: discordId }, { discordId: discordId, wallet: wallet }).exec();
             } else {
-                jsonRes.exists = true;
+                await BWHolderLink.create({ discordId: discordId, wallet: wallet });
             }
+            const holdingNum = await getAmountOfBitWhips(wallet);
+            if (holdingNum > 0) {
+                // Submit Request to update roles.
+                sendHolderMessageToDiscord(`${discordId} ${wallet} ${signature} ${holdingNum}`, 'Holder Verification');
+            }
+            jsonRes.success = true;
         } catch (e) {
             console.log(e);
             jsonRes.error = true;
         }
         res.json(jsonRes).send();
+    } else {
+        res.status(400).send();
     }
 });
 

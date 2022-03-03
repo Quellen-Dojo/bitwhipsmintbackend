@@ -616,7 +616,7 @@ function validateTxnTransferAmounts(preBalances, postBalances, lamports, fee) {
  * @param {string} wallet 
  * @returns 
  */
-async function processHolderSubmission(discordId, wallet) {
+async function getAmountOfBitWhips(wallet) {
     const pubkey = new PublicKey(wallet);
     const accs = await sendJSONRPCRequest([wallet, { programId: TOKEN_PROGRAM_ID.toBase58() }], 'POST', 'getTokenAccountsByOwner');
     const tokenMints = accs.result.value
@@ -655,6 +655,21 @@ app.get('/ping', (req, res) => {
 //     }
 // });
 
+app.post('/recheckHolders', async (req, res) => {
+    const { key } = req.body;
+    if (key === currentKey) {
+        let validRes = {};
+        const holderDocs = await BWHolderLink.find({}).exec();
+        for (const doc of holderDocs) {
+            let holdingNum = await getAmountOfBitWhips(doc.wallet);
+            if (holdingNum > 0) { validRes[doc.discordId] = holdingNum; }
+        }
+        res.json(validRes).send();
+    } else {
+        res.status(401).send();
+    }
+});
+
 app.post('/submitForHolderVerif', async (req, res) => {
     const { discordId, wallet, signature } = req.body;
     const jsonRes = { error: null, exists: false, created: false };
@@ -662,9 +677,9 @@ app.post('/submitForHolderVerif', async (req, res) => {
         try {
             const walletCheckRes = await BWHolderLink.findOne({ wallet: wallet }).exec();
             if (!walletCheckRes) {
-                // await BWHolderLink.create({ discordId: discordId, wallet: wallet });
+                BWHolderLink.create({ discordId: discordId, wallet: wallet });
                 jsonRes.created = true;
-                const holdingNum = await processHolderSubmission(discordId, wallet);
+                const holdingNum = await getAmountOfBitWhips(wallet);
                 if (holdingNum > 0) {
                     // Submit Request to update roles.
                     sendHolderMessageToDiscord(`${discordId} ${wallet} ${signature} ${holdingNum}`, 'Holder Verification');

@@ -3,6 +3,7 @@ const mergeImages = require('merge-images');
 const { Canvas, Image } = require('canvas');
 const { actions, NodeWallet } = require('@metaplex/js');
 const { PublicKey, Connection, Keypair } = require('@solana/web3.js');
+const { Metadata } = require('@metaplex-foundation/mpl-token-metadata'); 
 const https = require('https');
 
 const { landevoDirtyVersions, teslerrDirtyVersions, treeFiddyDirtyVersions } = require('../constants');

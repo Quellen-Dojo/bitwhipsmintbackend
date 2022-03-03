@@ -366,12 +366,6 @@ app.post('/submitForHolderVerif', async (req, res) => {
     }
 });
 
-// TODO
-app.post('/unlinkholder', async (req, res) => {
-    res.status(200).send();
-});
-// END TODO
-
 app.get('/washedcars', async (req, res) => {
     try {
         const washedcars = (await CarwashCount.findOne({ _id: carwashCountDoc }).exec()).amount;

@@ -130,7 +130,7 @@ function verifyMetadata(metadata) {
 
     let valid = true;
     try {
-        if (metadata.data.data.creators.filter(v => !allowedOwners.includes(v)).length > 0 || metadata.data.updateAuthority !== allowedOwners[0]) {
+        if (metadata.data.data.creators.filter(v => !allowedOwners.includes(v.address)).length > 0 || metadata.data.updateAuthority !== allowedOwners[0]) {
             valid = false;
         }
     } catch (e) {

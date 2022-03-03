@@ -659,12 +659,18 @@ app.post('/recheckHolders', async (req, res) => {
     const { key } = req.body;
     if (key === currentKey) {
         let validRes = {};
+        let invalidRes = [];
         const holderDocs = await BWHolderLink.find({}).exec();
         for (const doc of holderDocs) {
             let holdingNum = await getAmountOfBitWhips(doc.wallet);
-            if (holdingNum > 0) { validRes[doc.discordId] = holdingNum; }
+            if (holdingNum > 0) {
+                validRes[doc.discordId] = holdingNum;
+            } else {
+                invalidRes.push(doc.discordId);
+                await BWHolderLink.deleteMany({ wallet: doc.wallet }).exec();
+            }
         }
-        res.json(validRes).send();
+        res.json({ valid: validRes, invalid: invalidRes }).send();
     } else {
         res.status(401).send();
     }

@@ -147,7 +147,7 @@ async function generateCleanUploadAndUpdate(metadata,carType,IPFSClient) {
 
     await updateNFTMetadataMongo(mintAddress, metadata, carType);
 
-    return updateSig;
+    return;
 }
 
 module.exports = { generateCleanUploadAndUpdate , getCleanVersion, findFileFromTrait };

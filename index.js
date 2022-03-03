@@ -130,14 +130,7 @@ function verifyMetadata(metadata) {
 
     let valid = true;
     try {
-        if (
-            !allowedOwners.includes(metadata.data.data.creators[0].address) ||
-            !allowedOwners.includes(metadata.data.data.creators[1].address) ||
-            (metadata.data.data.creators[2] && !allowedOwners.includes(metadata.data.data.creators[2].address))
-        ) {
-            valid = false;
-        }
-        if (metadata.data.updateAuthority !== allowedOwners[0]) {
+        if (metadata.data.data.creators.filter(v => !allowedOwners.includes(v)).length > 0 || metadata.data.updateAuthority !== allowedOwners[0]) {
             valid = false;
         }
     } catch (e) {
@@ -301,6 +294,10 @@ app.use(cors());
 app.use(express.json());
 
 app.get('/ping', (req, res) => {
+    res.send('Pong!');
+});
+
+app.post('/ping', (req, res) => {
     res.send('Pong!');
 });
 
@@ -503,7 +500,6 @@ app.post('/manualdiscwalletlink', async (req, res) => {
     }
 });
 
-//GET that checks if this wallet is already linked or not
 app.get('/islinkedtodiscord', async (req, res) => {
     const { key, discordId } = req.query;
     if (key == currentKey) {
@@ -553,7 +549,6 @@ app.post('/getIdFromCode', async (req, res) => {
     }
 });
 
-//Post
 app.post('/linkdiscord', async (req, res) => {
     const { discordId, wallet, key } = req.body;
     try {

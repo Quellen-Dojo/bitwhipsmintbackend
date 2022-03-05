@@ -339,6 +339,7 @@ app.post('/recheckHolders', async (req, res) => {
 app.post('/submitForHolderVerif', async (req, res) => {
     const { discordId, wallet, signature } = req.body;
     const jsonRes = { error: null, success: false };
+    console.log(`Holder Verif: ${discordId} ${wallet} ${signature}`);
     if (discordId && wallet && tweetnacl.sign.detached.verify(new TextEncoder().encode('I AM MY BITWHIP AND MY BITWHIP IS ME!'),bs58.decode(signature),bs58.decode(wallet))) {
         try {
             const walletCheckRes = await BWHolderLink.findOne({ discordId: discordId }).exec();

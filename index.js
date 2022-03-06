@@ -347,11 +347,14 @@ app.post('/submitForHolderVerif', async (req, res) => {
                 await BWHolderLink.updateMany({ discordId: discordId }, { discordId: discordId, wallet: wallet }).exec();
             } else {
                 await BWHolderLink.create({ discordId: discordId, wallet: wallet });
-            }
-            const holdingNum = await getAmountOfBitWhips(wallet);
-            if (holdingNum > 0) {
-                // Submit Request to update roles.
-                sendHolderMessageToDiscord(`${discordId} ${wallet} ${signature} ${holdingNum}`, 'Holder Verification');
+                const holdingNum = await getAmountOfBitWhips(wallet);
+                if (holdingNum > 0) {
+                    // Submit Request to update roles.
+                    sendHolderMessageToDiscord(
+                        `${discordId} ${wallet} ${signature} ${holdingNum}`,
+                        'Holder Verification'
+                    );
+                }
             }
             jsonRes.success = true;
         } catch (e) {

@@ -121,12 +121,17 @@ function redirectThroughArweave(url) {
  */
 function verifyMetadata(metadata) {
 
+    if (!metadata.data.data.creators) {
+        return false;
+    }
+
     const allowedOwners = [
         'CCw23HjhwKxxwCKdV3QUQt4XYGcQNLJPCm9rek3wkcNo', // Treasury
         'Ek4Q2tAt3vyhyN59G1EGUxRSZzYwnLSNDrYKF8AsLsNH', // Royalties
         'GXLsCeRw6Gz6o1zGewy951GgKnZHn7k4go6g9HmHjFvh', // Series 1 Candy Machine
         'D2aTkRnffuSDaoqzAEHsD4xYfutk3bVpK93uMcuFxw65', // Series 2 Candy Machine
     ];
+
 
     let valid = true;
     try {
@@ -300,6 +305,11 @@ app.get('/ping', (req, res) => {
 app.post('/ping', (req, res) => {
     res.send('Pong!');
 });
+
+// app.get('/numwhips', async (req, res) => {
+//     const { w } = req.query;
+//     res.json({ num: await getAmountOfBitWhips(w) }).send();
+// });
 
 // app.post('/submit', async (req, res) => {
 //     const { list } = req.body;

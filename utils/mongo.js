@@ -14,6 +14,11 @@ const DiscordLinkSchema = new Schema({
     wallet: String,
 });
 
+const HolderSchema = new Schema({
+    discordId: String,
+    wallet: String,
+});
+
 const CarwashCountSchema = new Schema({
     amount: Number,
 });
@@ -24,7 +29,7 @@ const NFTMetadataSchema = new Schema({
 });
 
 const BWDiscordLink = mongoose.model('BitwhipsDiscordLink', DiscordLinkSchema);
-const BWHolderLink = mongoose.model('BitwhipsHolderLink', DiscordLinkSchema);
+const BWHolderLink = mongoose.model('BitwhipsHolderLink', HolderSchema);
 
 const CarwashCount = mongoose.model('CarwashCount', CarwashCountSchema);
 const LandevoMetadata = mongoose.model('LandevoMetadata', NFTMetadataSchema);
@@ -54,9 +59,10 @@ function incrementWash() {
     });
 }
 
-async function createLandevoMetadataMongo(mint, metadata) {
-    const res = await TeslerrMetadata.create({ mintAddress: mint, metadata: metadata });
-    return res;
+async function createLandevoMetadataMongo(mint, metadata, model) {
+    if (!(await model.findOne({ mintAddress: mint }).exec())) {
+        const res = await model.create({ mintAddress: mint, metadata: metadata });
+    }
 }
 
 async function updateNFTMetadataMongo(mint, newmetadata, carType) {

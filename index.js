@@ -120,7 +120,6 @@ function redirectThroughArweave(url) {
  * @returns {boolean}
  */
 function verifyMetadata(metadata) {
-
     if (!metadata.data.data.creators) {
         return false;
     }
@@ -131,7 +130,6 @@ function verifyMetadata(metadata) {
         'GXLsCeRw6Gz6o1zGewy951GgKnZHn7k4go6g9HmHjFvh', // Series 1 Candy Machine
         'D2aTkRnffuSDaoqzAEHsD4xYfutk3bVpK93uMcuFxw65', // Series 2 Candy Machine
     ];
-
 
     let valid = true;
     try {
@@ -272,33 +270,50 @@ function validateTxnTransferAmounts(preBalances, postBalances, lamports, fee) {
 /**
  * 
  * @param {string} wallet 
- * @returns 
+ * @returns {Promise<[number, string[]]>}
  */
-async function getAmountOfBitWhips(wallet) {
+async function getNumOfBitWhipsInitial(wallet) {
     const pubkey = new PublicKey(wallet);
     const accs = await sendJSONRPCRequest([wallet, { programId: TOKEN_PROGRAM_ID.toBase58() }], 'POST', 'getTokenAccountsByOwner');
     const tokenMints = accs.result.value
         .filter(v => v.account.data.parsed.info.tokenAmount.amount > 0)
         .map(v => v.account.data.parsed.info.mint);
     
+    
     let numOf = 0;
+    let mints = [];
     for (const mint of tokenMints) {
         try {
             const meta = await Metadata.load(rpcConn, await Metadata.getPDA(mint));
             if (verifyMetadata(meta)) {
                 numOf += 1;
+                mints.push(mint);
             }
         } catch {
 
         }
     }
-    return numOf;
+    return [numOf, mints];
+}
+
+async function getNumOfBitWhipsRecheck(wallet) {
+    const tokenReq = await sendJSONRPCRequest(
+        [wallet, { programId: TOKEN_PROGRAM_ID.toBase58() }],
+        'POST',
+        'getTokenAccountsByOwner'
+    );
+    const tokenMints = tokenReq.result.value
+        .filter(v => v.account.data.parsed.info.tokenAmount.amount > 0)
+        .map(v => v.account.data.parsed.info.mint);
+    
+    return (await LandevoMetadata.find({ mintAddress: tokenMints }).exec()).length + (await TeslerrMetadata.find({ mintAddress: tokenMints }).exec()).length + (await TreeFiddyMetadata.find({ mintAddress: tokenMints }).exec()).length;
 }
 
 app.use(cors());
 app.use(express.json());
 
-app.get('/ping', (req, res) => {
+app.get('/ping', async (req, res) => {
+    // res.json((await BWDiscordLink.find({ discordId: ['416430897894522890', '733199983288909824'] }).exec()).map(v => v.wallet)).send();
     res.send('Pong!');
 });
 
@@ -316,9 +331,10 @@ app.post('/ping', (req, res) => {
 //     try {
 //         for (const hash of list) {
 //             const metadata = await fetchMetadataOfToken(hash);
-//             await createLandevoMetadataMongo(hash, metadata);
+//             await createLandevoMetadataMongo(hash, metadata, TreeFiddyMetadata);
 //             console.log(`Created metadata for #${metadata.edition}`)
 //         }
+//         res.status(200).send();
 //     } catch (error) {
 //         console.log(error);
 //         res.status(500).send();
@@ -332,7 +348,7 @@ app.post('/recheckHolders', async (req, res) => {
         let invalidRes = [];
         const holderDocs = await BWHolderLink.find({}).exec();
         for (const doc of holderDocs) {
-            let holdingNum = await getAmountOfBitWhips(doc.wallet);
+            const holdingNum = await getNumOfBitWhipsRecheck(doc.wallet);
             if (holdingNum > 0) {
                 validRes[doc.discordId] = holdingNum;
             } else {
@@ -357,7 +373,7 @@ app.post('/submitForHolderVerif', async (req, res) => {
                 await BWHolderLink.updateMany({ discordId: discordId }, { discordId: discordId, wallet: wallet }).exec();
             } else {
                 await BWHolderLink.create({ discordId: discordId, wallet: wallet });
-                const holdingNum = await getAmountOfBitWhips(wallet);
+                const [holdingNum] = await getNumOfBitWhipsRecheck(wallet);
                 if (holdingNum > 0) {
                     // Submit Request to update roles.
                     sendHolderMessageToDiscord(
@@ -388,7 +404,7 @@ app.get('/washedcars', async (req, res) => {
 
 app.get('/fulllandevodata', async (req, res) => { 
     const { key } = req.query;
-    if (key == currentKey) {
+    if (key === currentKey) {
         try {
             const metadataList = [];
             const docs = await LandevoMetadata.find({}).exec();
@@ -406,7 +422,7 @@ app.get('/fulllandevodata', async (req, res) => {
 
 app.get('/fullteslerrdata', async (req, res) => {
     const { key } = req.query;
-    if (key == currentKey) {
+    if (key === currentKey) {
         try {
             const metadataList = [];
             const docs = await TeslerrMetadata.find({}).exec();
@@ -480,7 +496,7 @@ app.get('/getallwhips', async (req, res) => {
 
 app.get('/getlinks', async (req, res) => {
     const { key } = req.query;
-    if (key == currentKey) {
+    if (key === currentKey) {
         BWDiscordLink.find((err, doc) => {
             if (err) {
                 res.status(500).send();
@@ -496,7 +512,7 @@ app.get('/getlinks', async (req, res) => {
 
 app.post('/manualdiscwalletlink', async (req, res) => {
     const { key, discordId, wallet } = req.body;
-    if (key == currentKey) {
+    if (key === currentKey) {
         try {
             const existingDiscEntry = await BWDiscordLink.findOne({ discordId: discordId }).exec();
             const existingWalletEntry = await BWDiscordLink.findOne({ wallet: wallet }).exec();
@@ -516,7 +532,7 @@ app.post('/manualdiscwalletlink', async (req, res) => {
 
 app.get('/islinkedtodiscord', async (req, res) => {
     const { key, discordId } = req.query;
-    if (key == currentKey) {
+    if (key === currentKey) {
         res.json(await checkDiscordLink(discordId)).send();
     } else {
         res.status(401).send();
@@ -525,7 +541,7 @@ app.get('/islinkedtodiscord', async (req, res) => {
 
 app.get('/getlinkeddiscords', async (req, res) => {
     const { key } = req.query;
-    if (key == currentKey) {
+    if (key === currentKey) {
         BWDiscordLink.find((err, doc) => {
             if (err) {
                 res.status(500).send();
@@ -566,7 +582,7 @@ app.post('/getIdFromCode', async (req, res) => {
 app.post('/linkdiscord', async (req, res) => {
     const { discordId, wallet, key } = req.body;
     try {
-        if (key == currentKey) {
+        if (key === currentKey) {
             const checkRes = await checkDiscordLink(discordId, wallet);
             const whitelistedNum = await getNumberInModel(BWDiscordLink);
             const jsonRes = { exists: false, wallet: undefined, created: false, closed: false };
@@ -595,7 +611,7 @@ app.post('/linkdiscord', async (req, res) => {
 
 app.post('/unlinkdiscord', async (req, res) => {
     const { key, discordId } = req.body;
-    if (key == currentKey && discordId) {
+    if (key === currentKey && discordId) {
         const dataRes = await BWDiscordLink.findOne({ discordId: discordId }).exec();
         if (dataRes) {
             await BWDiscordLink.deleteMany({discordId: discordId}).exec();
@@ -610,7 +626,7 @@ app.post('/unlinkdiscord', async (req, res) => {
 
 app.get('/walletbydiscord', async (req, res) => {
     const { key, id } = req.query;
-    if (key == currentKey) {
+    if (key === currentKey) {
         BWDiscordLink.find({ discordId: id }, (err, doc) => {
             if (err) {
                 res.status(404).send();
@@ -625,7 +641,7 @@ app.get('/walletbydiscord', async (req, res) => {
 
 app.get('/discordbywallet', async (req, res) => {
     const { key, wallet } = req.query;
-    if (key == currentKey) {
+    if (key === currentKey) {
         BWDiscordLink.find({ wallet: wallet }, (err, doc) => {
             if (err) {
                 res.status(404).send();
@@ -640,7 +656,7 @@ app.get('/discordbywallet', async (req, res) => {
 
 app.get('/getstats', async (req, res) => {
     const { key } = req.query;
-    if (key == currentKey) {
+    if (key === currentKey) {
         try {
             const numWhitelists = await getNumberInModel(BWDiscordLink);
             const numAirdrops = await getNumberInModel(BWDiscordLink);
@@ -655,7 +671,7 @@ app.get('/getstats', async (req, res) => {
 
 app.post('/rollkey', async (req, res) => {
     const { key, newKey } = req.body;
-    if (key == currentKey) {
+    if (key === currentKey) {
         currentKey = newKey;
     }
  });

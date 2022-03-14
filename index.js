@@ -632,13 +632,12 @@ app.post('/unlinkdiscord', async (req, res) => {
 app.get('/walletbydiscord', async (req, res) => {
     const { key, id } = req.query;
     if (key === currentKey) {
-        BWDiscordLink.find({ discordId: id }, (err, doc) => {
-            if (err) {
-                res.status(404).send();
-            } else {
-                res.json({ wallet: doc[0].wallet }).send();
-            }
-        });
+        const wRes = await BWDiscordLink.findOne({ discordId: id }).exec();
+        if (wRes) {
+            res.json({ wallet: wRes.wallet }).send();
+        } else {
+            res.status(404).send();
+        }
     } else {
         res.status(401).send();
     }

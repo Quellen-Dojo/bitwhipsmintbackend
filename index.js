@@ -341,6 +341,11 @@ app.post('/ping', (req, res) => {
 //     }
 // });
 
+app.get('/holderstatus', async (req, res) => {
+    const { wallet } = req.query;
+    res.json({valid: await BWHolderLink.find({wallet: wallet}).exec() == null})
+});
+
 app.post('/recheckHolders', async (req, res) => {
     const { key } = req.body;
     if (key === currentKey) {

@@ -378,7 +378,7 @@ app.post('/submitForHolderVerif', async (req, res) => {
                 await BWHolderLink.updateMany({ discordId: discordId }, { discordId: discordId, wallet: wallet }).exec();
             } else {
                 await BWHolderLink.create({ discordId: discordId, wallet: wallet });
-                const [holdingNum] = await getNumOfBitWhipsRecheck(wallet);
+                const holdingNum = await getNumOfBitWhipsRecheck(wallet);
                 if (holdingNum > 0) {
                     // Submit Request to update roles.
                     sendHolderMessageToDiscord(

@@ -309,6 +309,10 @@ async function getNumOfBitWhipsRecheck(wallet) {
     return (await LandevoMetadata.find({ mintAddress: tokenMints }).exec()).length + (await TeslerrMetadata.find({ mintAddress: tokenMints }).exec()).length + (await TreeFiddyMetadata.find({ mintAddress: tokenMints }).exec()).length;
 }
 
+function verifySignature(msg, pubKey, signature) {
+    return tweetnacl.sign.detached.verify(new TextEncoder().encode(msg), bs58.decode(signature), bs58.decode(pubKey));
+}
+
 app.use(cors());
 app.use(express.json());
 
@@ -342,8 +346,12 @@ app.post('/ping', (req, res) => {
 // });
 
 app.get('/holderstatus', async (req, res) => {
-    const { wallet } = req.query;
-    res.json({valid: await BWHolderLink.find({wallet: wallet}).exec() == null})
+    const { wallet, signature } = req.query;
+    if (verifySignature('I AM MY BITWHIP AND MY BITWHIP IS ME!', wallet, signature)) {
+        res.json({ valid: await BWHolderLink.find({ wallet: wallet }).exec() == null }).send();
+    } else {
+        res.json({ valid: false }).send();
+    }
 });
 
 app.post('/recheckHolders', async (req, res) => {
@@ -371,7 +379,7 @@ app.post('/submitForHolderVerif', async (req, res) => {
     const { discordId, wallet, signature } = req.body;
     const jsonRes = { error: null, success: false };
     console.log(`Holder Verif: ${discordId} ${wallet} ${signature}`);
-    if (discordId && wallet && tweetnacl.sign.detached.verify(new TextEncoder().encode('I AM MY BITWHIP AND MY BITWHIP IS ME!'),bs58.decode(signature),bs58.decode(wallet))) {
+    if (discordId && wallet && verifySignature('I AM MY BITWHIP AND MY BITWHIP IS ME!', wallet, signature)) {
         try {
             const walletCheckRes = await BWHolderLink.findOne({ discordId: discordId }).exec();
             if (walletCheckRes) {

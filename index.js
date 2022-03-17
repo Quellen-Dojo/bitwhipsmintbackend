@@ -348,7 +348,7 @@ app.post('/ping', (req, res) => {
 app.get('/holderstatus', async (req, res) => {
     const { wallet, signature } = req.query;
     if (verifySignature('I AM MY BITWHIP AND MY BITWHIP IS ME!', wallet, signature)) {
-        res.json({ valid: await BWHolderLink.find({ wallet: wallet }).exec() == null }).send();
+        res.json({ valid: await BWHolderLink.find({ wallet: wallet }).exec() != null }).send();
     } else {
         res.json({ valid: false }).send();
     }

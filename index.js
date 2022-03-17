@@ -348,9 +348,9 @@ app.post('/ping', (req, res) => {
 app.get('/holderstatus', async (req, res) => {
     const { wallet, signature } = req.query;
     if (verifySignature('I AM MY BITWHIP AND MY BITWHIP IS ME!', wallet, signature)) {
-        res.json({ valid: await BWHolderLink.find({ wallet: wallet }).exec() != null }).send();
+        res.json({ valid: await BWHolderLink.find({ wallet: wallet }).exec() != null });
     } else {
-        res.json({ valid: false }).send();
+        res.json({ valid: false });
     }
 });
 
@@ -369,7 +369,7 @@ app.post('/recheckHolders', async (req, res) => {
                 await BWHolderLink.deleteMany({ wallet: doc.wallet }).exec();
             }
         }
-        res.json({ valid: validRes, invalid: invalidRes }).send();
+        res.json({ valid: validRes, invalid: invalidRes });
     } else {
         res.status(401).send();
     }

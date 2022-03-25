@@ -16,6 +16,7 @@ const { getNumberInModel, createLandevoMetadataMongo, BWDiscordLink, BWHolderLin
 
 const carwashCountDoc = process.env.carwashCountDoc;
 
+// Test
 const whitelistSpots = 700;
 
 const IPFSClient = IPFS.create({
@@ -330,20 +331,26 @@ app.post('/ping', (req, res) => {
 //     res.json({ num: await getAmountOfBitWhips(w) }).send();
 // });
 
-// app.post('/submit', async (req, res) => {
-//     const { list } = req.body;
-//     try {
-//         for (const hash of list) {
-//             const metadata = await fetchMetadataOfToken(hash);
-//             await createLandevoMetadataMongo(hash, metadata, TreeFiddyMetadata);
-//             console.log(`Created metadata for #${metadata.edition}`)
-//         }
-//         res.status(200).send();
-//     } catch (error) {
-//         console.log(error);
-//         res.status(500).send();
-//     }
-// });
+app.post('/submit', async (req, res) => {
+    const { list, key } = req.body;
+    if (key === currentKey) {
+        try {
+            for (const hash of list) {
+                if ((await TreeFiddyMetadata.findOne({ mintAddress: hash }).exec()) == null) {
+                    const metadata = await fetchMetadataOfToken(hash);
+                    await createLandevoMetadataMongo(hash, metadata, TreeFiddyMetadata);
+                }
+            }
+            console.log('Done!');
+            res.status(200).send();
+        } catch (error) {
+            console.log(error);
+            res.status(500).send();
+        }
+    } else {
+        res.status(403);
+    }
+});
 
 app.get('/holderstatus', async (req, res) => {
     const { wallet, signature } = req.query;
@@ -353,6 +360,15 @@ app.get('/holderstatus', async (req, res) => {
         res.json({ valid: false });
     }
 });
+
+app.get('/dolphinstatus', async (req, res) => {
+    const { wallet, signature } = req.query;
+    if (verifySignature('I AM MY BITWHIP AND MY BITWHIP IS ME!', wallet, signature) && await getNumOfBitWhipsRecheck(wallet) >= 5) {
+        res.json({ valid: true });
+    } else {
+        res.json({ valid: false });
+    }
+})
 
 app.post('/recheckHolders', async (req, res) => {
     const { key } = req.body;
@@ -371,7 +387,7 @@ app.post('/recheckHolders', async (req, res) => {
         }
         res.json({ valid: validRes, invalid: invalidRes });
     } else {
-        res.status(401).send();
+        res.status(401)
     }
 });
 
@@ -400,9 +416,9 @@ app.post('/submitForHolderVerif', async (req, res) => {
             console.log(e);
             jsonRes.error = true;
         }
-        res.json(jsonRes).send();
+        res.json(jsonRes);
     } else {
-        res.status(400).send();
+        res.status(400);
     }
 });
 

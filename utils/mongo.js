@@ -62,6 +62,7 @@ function incrementWash() {
 async function createLandevoMetadataMongo(mint, metadata, model) {
     if (!(await model.findOne({ mintAddress: mint }).exec())) {
         const res = await model.create({ mintAddress: mint, metadata: metadata });
+        console.log(`Created metadata for #${metadata.edition}`);
     }
 }
 

@@ -541,6 +541,52 @@ app.get('/getallwhips', async (req, res) => {
     }
 });
 
+app.get('/easygetallwhips', async (req, res) => {
+    const { wallet, username, includeTopLevel } = req.query;
+    if (validateWallet(wallet)) {
+        try {
+
+            const getMetaFromMongo = async (mint) => {
+                const landevoRes = await LandevoMetadata.findOne({ mintAddress: mint }).exec();
+                const teslerrRes = await TeslerrMetadata.findOne({ mintAddress: mint }).exec();
+                const treefiddyRes = await TreeFiddyMetadata.findOne({ mintAddress: mint }).exec();
+                if (landevoRes) { return { ...landevoRes.metadata, mint: mint }; }
+                if (teslerrRes) {
+                    return { ...teslerrRes.metadata, mint: mint };
+                }
+                if (treefiddyRes) {
+                    return { ...treefiddyRes.metadata, mint: mint };
+                }
+                return null;
+            };  
+
+            const tokenReq = await sendJSONRPCRequest(
+                [wallet, { programId: TOKEN_PROGRAM_ID.toBase58() }],
+                'POST',
+                'getTokenAccountsByOwner'
+            );
+            // console.log(tokenReq);
+            const tokenMetas = tokenReq.result.value
+                .filter(v => v.account.data.parsed.info.tokenAmount.amount > 0)
+                .map(v => v.account.data.parsed.info.mint);
+            const result = [];
+            for (const mintAdd of tokenMetas) {
+                const metaRes = await getMetaFromMongo(mintAdd);
+                if (metaRes) {
+                    result.push(metaRes);
+                }
+            }
+            
+            res.json(result)
+        } catch (e) {
+            console.log(e);
+            res.status(500).send();
+        }
+    } else {
+        res.status(400).send();
+    }
+});
+
 app.get('/getlinks', async (req, res) => {
     const { key } = req.query;
     if (key === currentKey) {

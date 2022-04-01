@@ -97,7 +97,6 @@ async function getCleanVersion(category, trait_name, carType) {
  * 
  * @param {object} metadata 
  * @param {string} carType 
- * @param {}
  * @returns 
  */
 async function generateCleanUploadAndUpdate(metadata,carType,IPFSClient) {

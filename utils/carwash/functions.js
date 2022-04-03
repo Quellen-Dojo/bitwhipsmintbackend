@@ -16,7 +16,7 @@ const rpcConn = new Connection(process.env.rpcEndpoint, {
     commitment: 'confirmed',
     confirmTransactionInitialTimeout: 100000,
 });
-const removeWeightRegex = /^([\w\s]+)/;
+const removeWeightRegex = /^([\w\s&]+)/;
 
 /**
  * 
@@ -38,7 +38,7 @@ function findFileFromTrait(category, trait_name, carType) {
                         return;
                     }
                 }
-                reject(`Could not find trait {trait_type: '${category}', value: ${trait_name}}`);
+                reject(`Could not find trait {trait_type: '${category}', value: '${trait_name}'}`);
                 return;
             }
         });

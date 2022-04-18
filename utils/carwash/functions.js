@@ -6,7 +6,7 @@ const { PublicKey, Connection, Keypair } = require('@solana/web3.js');
 const { Metadata } = require('@metaplex-foundation/mpl-token-metadata'); 
 const https = require('https');
 
-const { landevoDirtyVersions, teslerrDirtyVersions, treeFiddyDirtyVersions } = require('../constants');
+const { landevoDirtyVersions, teslerrDirtyVersions, treeFiddyDirtyVersions, gojiraDirtyVerions } = require('../constants');
 const { incrementWash, updateNFTMetadataMongo } = require('../mongo');
 
 const treasuryWallet = new NodeWallet(
@@ -63,7 +63,7 @@ function sendMessageToDiscord(message, username, avatarImageUrl = '') {
 /**
  * @param {string} category
  * @param {string} trait_name
- * @param {'landevo' | 'teslerr' | 'treefiddy'} carType
+ * @param {'landevo' | 'teslerr' | 'treefiddy' | 'gojira'} carType
  */
 async function getCleanVersion(category, trait_name, carType) {
     let cleanTable;
@@ -76,6 +76,9 @@ async function getCleanVersion(category, trait_name, carType) {
             break;
         case 'treefiddy':
             cleanTable = treeFiddyDirtyVersions;
+            break;
+        case 'gojira':
+            cleanTable = gojiraDirtyVerions;
             break;
     }
 

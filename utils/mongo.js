@@ -35,6 +35,7 @@ const CarwashCount = mongoose.model('CarwashCount', CarwashCountSchema);
 const LandevoMetadata = mongoose.model('LandevoMetadata', NFTMetadataSchema);
 const TeslerrMetadata = mongoose.model('TeslerrMetadata', NFTMetadataSchema);
 const TreeFiddyMetadata = mongoose.model('TreeFiddyMetadata', NFTMetadataSchema);
+const GojiraMetadata = mongoose.model('GojiraMetadata', NFTMetadataSchema);
 
 /**
  * Return how many documents exists in the given Model
@@ -77,8 +78,12 @@ async function updateNFTMetadataMongo(mint, newmetadata, carType) {
             break;
         case 'treefiddy':
             res = await TreeFiddyMetadata.updateOne({ mintAddress: mint }, { metadata: newmetadata }).exec();
+            break;
+        case 'gojira':
+            res = await GojiraMetadata.updateOne({ mintAddress: mint }, { metadata: newmetadata }).exec();
+            break;
     }
     return res;
 }
 
-module.exports = {getNumberInModel ,updateNFTMetadataMongo, createLandevoMetadataMongo , incrementWash , BWDiscordLink, BWHolderLink, CarwashCount, LandevoMetadata, TeslerrMetadata, TreeFiddyMetadata };
+module.exports = {getNumberInModel ,updateNFTMetadataMongo, createLandevoMetadataMongo , incrementWash , BWDiscordLink, BWHolderLink, CarwashCount, LandevoMetadata, TeslerrMetadata, TreeFiddyMetadata, GojiraMetadata };

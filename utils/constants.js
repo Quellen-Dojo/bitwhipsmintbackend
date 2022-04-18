@@ -131,8 +131,18 @@ const treeFiddyDirtyVersions = {
     },
 };
 
+const gojiraDirtyVerions = {
+    Dirt: {
+        None: ['Dirt'],
+    },
+    Patina: {
+        None: ['Patina'],
+    }
+};
+
 module.exports = {
     landevoDirtyVersions,
     teslerrDirtyVersions,
-    treeFiddyDirtyVersions
+    treeFiddyDirtyVersions,
+    gojiraDirtyVerions
 };

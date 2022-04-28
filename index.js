@@ -377,7 +377,7 @@ app.post('/submit', async (req, res) => {
             for (const hash of list) {
                 if ((await GojiraMetadata.findOne({ mintAddress: hash }).exec()) == null) {
                     const metadata = await fetchMetadataOfToken(hash);
-                    await createLandevoMetadataMongo(hash, metadata, TreeFiddyMetadata);
+                    await createLandevoMetadataMongo(hash, metadata, GojiraMetadata);
                 }
             }
             console.log('Done!');

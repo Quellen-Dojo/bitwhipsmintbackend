@@ -389,19 +389,20 @@ app.post('/ping', (req, res) => {
 app.post('/submit', async (req, res) => {
     const { list, key } = req.body;
     if (key === currentKey) {
-        try {
-            for (const hash of list) {
+        for (const hash of list) {
+            try {
                 if ((await GojiraMetadata.findOne({ mintAddress: hash }).exec()) == null) {
                     const metadata = await fetchMetadataOfToken(hash);
                     await createLandevoMetadataMongo(hash, metadata, GojiraMetadata);
                 }
+            } catch (e) {
+                console.log(`Error with ${hash}`);
+                console.log(e);
+                continue;
+            }
             }
             console.log('Done!');
             res.status(200).send();
-        } catch (error) {
-            console.log(error);
-            res.status(500).send();
-        }
     } else {
         res.status(403);
     }
@@ -447,7 +448,7 @@ app.post('/recheckHolders', async (req, res) => {
             if (staked) {
                 const stakedEntry = staked.filter(v => v['_id'] === doc.wallet);
                 if (stakedEntry.length > 0) {
-                    holdingNum += stakedEntry.length;                    
+                    holdingNum += stakedEntry[0]["Tokens"].length;                    
                 }
             }
             if (holdingNum > 0) {
@@ -477,7 +478,22 @@ app.post('/submitForHolderVerif', async (req, res) => {
                 ).exec();
             } else {
                 await BWHolderLink.create({ discordId: discordId, wallet: wallet });
-                const holdingNum = await getNumOfBitWhipsRecheck(wallet);
+                let staked;
+                try {
+                    staked = await postRequest(
+                    "https://us-central1-nft-anybodies.cloudfunctions.net/API_V2_GetVaultStakerData",
+                    { data: { vaultId: process.env.stakedVaultId } }
+                    );
+                } catch { }
+                let holdingNum = await getNumOfBitWhipsRecheck(wallet);
+                if (staked) {
+                    const stakedEntry = staked.filter(
+                      (v) => v["_id"] === doc.wallet
+                    );
+                    if (stakedEntry.length > 0) {
+                        holdingNum += stakedEntry[0]["Tokens"].length;
+                    }
+                }
                 if (holdingNum > 0) {
                     // Submit Request to update roles.
                     sendHolderMessageToDiscord(

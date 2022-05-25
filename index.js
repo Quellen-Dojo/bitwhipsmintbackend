@@ -488,7 +488,7 @@ app.post('/submitForHolderVerif', async (req, res) => {
                 let holdingNum = await getNumOfBitWhipsRecheck(wallet);
                 if (staked) {
                     const stakedEntry = staked.filter(
-                      (v) => v["_id"] === doc.wallet
+                      (v) => v["_id"] === wallet
                     );
                     if (stakedEntry.length > 0) {
                         holdingNum += stakedEntry[0]["Tokens"].length;

@@ -4,14 +4,18 @@ const { Canvas, Image } = require('canvas');
 const { actions, NodeWallet } = require('@metaplex/js');
 const { PublicKey, Connection, Keypair } = require('@solana/web3.js');
 const { Metadata } = require('@metaplex-foundation/mpl-token-metadata'); 
+const bs58 = require('bs58');
 const https = require('https');
 
 const { landevoDirtyVersions, teslerrDirtyVersions, treeFiddyDirtyVersions, gojiraDirtyVerions } = require('../constants');
 const { incrementWash, updateNFTMetadataMongo } = require('../mongo');
 
 const treasuryWallet = new NodeWallet(
-    Keypair.fromSecretKey(Uint8Array.from(process.env.treasuryWallet.split(',').map(v => parseInt(v))))
+  Keypair.fromSecretKey(
+    Uint8Array.from(bs58.decode(process.env.treasuryWallet))
+  )
 );
+
 const rpcConn = new Connection(process.env.rpcEndpoint, {
     commitment: 'confirmed',
     confirmTransactionInitialTimeout: 100000,

@@ -108,6 +108,26 @@ async function checkDiscordLink(discordId, wallet = null) {
     return ret;
 }
 
+function postRequest(url, payload) {
+    return new Promise((resolve, reject) => {
+        const arReq = https.request(url, {method: 'POST', headers: { 'Content-Type': 'application/json' } }, res => {
+            try {
+                let data = '';
+                res.on('data', d => (data += d.toString()));
+                res.on('error', () => reject());
+                res.on('end', () => {
+                    resolve(JSON.parse(data));
+                });
+            } catch (e) {
+                console.log(e);
+                reject();
+            }
+        });
+        arReq.write(JSON.stringify(payload));
+        arReq.end();
+    });
+}
+
 function redirectThroughArweave(url) {
     return new Promise((resolve, reject) => {
         const arReq = https.get(url, { headers: { 'Content-Type': 'application/json' } }, res => {
@@ -345,7 +365,8 @@ async function getNumOfBitWhipsRecheck(wallet) {
     return (
         (await LandevoMetadata.find({ mintAddress: tokenMints }).exec()).length +
         (await TeslerrMetadata.find({ mintAddress: tokenMints }).exec()).length +
-        (await TreeFiddyMetadata.find({ mintAddress: tokenMints }).exec()).length
+        (await TreeFiddyMetadata.find({ mintAddress: tokenMints }).exec()).length +
+        (await GojiraMetadata.find({mintAddress: tokenMints}).exec()).length
     );
 }
 
@@ -364,11 +385,6 @@ app.get('/ping', async (req, res) => {
 app.post('/ping', (req, res) => {
     res.send('Pong!');
 });
-
-// app.get('/numwhips', async (req, res) => {
-//     const { w } = req.query;
-//     res.json({ num: await getAmountOfBitWhips(w) }).send();
-// });
 
 app.post('/submit', async (req, res) => {
     const { list, key } = req.body;
@@ -417,9 +433,23 @@ app.post('/recheckHolders', async (req, res) => {
     if (key === currentKey) {
         let validRes = {};
         let invalidRes = [];
+        let staked;
+        try {
+            staked = await postRequest(
+                "https://us-central1-nft-anybodies.cloudfunctions.net/API_V2_GetVaultStakerData",
+                { data: { vaultId: process.env.stakedVaultId } }
+            );
+        } catch { }
+        
         const holderDocs = await BWHolderLink.find({}).exec();
         for (const doc of holderDocs) {
-            const holdingNum = await getNumOfBitWhipsRecheck(doc.wallet);
+            let holdingNum = await getNumOfBitWhipsRecheck(doc.wallet);            
+            if (staked) {
+                const stakedEntry = staked.filter(v => v['_id'] === doc.wallet);
+                if (stakedEntry.length > 0) {
+                    holdingNum += stakedEntry.length;                    
+                }
+            }
             if (holdingNum > 0) {
                 validRes[doc.discordId] = holdingNum;
             } else {

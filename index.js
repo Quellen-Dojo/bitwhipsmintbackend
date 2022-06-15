@@ -330,19 +330,20 @@ async function retryGetTransaction(signature, retries = 4) {
   throw new Error("Could not grab transaction!");
 }
 
-/**
- * Verify that the number of 'lamports' matches the pre and post balances
- * @param {[Number,Number,Number]} preBalances
- * @param {[Number,Number,Number]} postBalances
- * @param {Number} lamports
- * @param {Number} fee
- * @returns
- */
-function validateTxnTransferAmounts(preBalances, postBalances, lamports, fee) {
-  return (
-    preBalances[0] - postBalances[0] === lamports + fee &&
-    postBalances[1] - preBalances[1] === lamports
-  );
+function validateTxnTransferAmounts(
+  preTokenBalances,
+  postTokenBalances,
+  lamports
+) {
+  const fromSent =
+    parseInt(preTokenBalances[0].uiTokenAmount.amount) -
+      parseInt(postTokenBalances[0].uiTokenAmount.amount) ===
+    lamports;
+  const toSent =
+    parseInt(postTokenBalances[1].uiTokenAmount.amount) -
+      parseInt(preTokenBalances[1].uiTokenAmount.amount) ===
+    lamports;
+  return toSent && fromSent;
 }
 
 /**
@@ -462,7 +463,7 @@ app.get("/holderdiscordcheck", async (req, res) => {
       const tokenRes = await oauth2.tokenRequest({
         clientId: "940761522781683793",
         redirectUri: process.env.toolVerifRedirect,
-        clientSecret: process.env.holderVerifSecret,       
+        clientSecret: process.env.holderVerifSecret,
         code: code,
         grantType: "authorization_code",
         scope: "identify",
@@ -664,19 +665,20 @@ app.post("/processcarwash", async (req, res) => {
     const tokenMeta = await fetchMetadataOfToken(nft.mint);
     tokenMeta["mint"] = nft.mint;
     console.log(txn);
-    const from = txn.transaction.message.accountKeys[0];
-    const to = txn.transaction.message.accountKeys[1];
+    const [from, fromAta, to] = txn.transaction.message.accountKeys;
+    console.log(`From: ${from.toBase58()}`);
+    console.log(`To: ${to.toBase58()}`);
+    const { postTokenBalances, preTokenBalances } = txn.meta;
     // Full price 200000000
     // Debug price: 1000000
     if (
       validateTxnTransferAmounts(
-        txn.meta.preBalances,
-        txn.meta.postBalances,
-        200000000,
-        txn.meta.fee
+        preTokenBalances,
+        postTokenBalances,
+        100 * 10 ** 9
       ) &&
-      to.toBase58() === "8ciei6XBAgjLHJjfRYSXducTWzzA5JLY9GajCzYBhLit" &&
-      fromWallet == from.toBase58() &&
+      to.toBase58() === "H3WkH9HCWFP7jXN12RnJHZmis6ymv8yAx8jYQNTX4sHU" &&
+      fromWallet === from.toBase58() &&
       !tokenMeta["Washed"]
     ) {
       //update metadata here!
@@ -684,10 +686,10 @@ app.post("/processcarwash", async (req, res) => {
         await generateCleanUploadAndUpdate(tokenMeta, type, IPFSClient);
         res.status(200).send();
       } catch (generationError) {
-        sendMessageToDiscord(
-          `<@&898643399299694622> <@&900148882489634836> **SERIOUS ERROR WITH THE CARWASH**\n\nTxn Signature: ${signature}\n\nMint Address: ${nft.mint}\n\nWe may have to refund this transaction!\n\n${generationError}`,
-          "Car Wash Notifications"
-        );
+        // sendMessageToDiscord(
+        //   `<@&898643399299694622> <@&900148882489634836> **SERIOUS ERROR WITH THE CARWASH**\n\nTxn Signature: ${signature}\n\nMint Address: ${nft.mint}\n\nWe may have to refund this transaction!\n\n${generationError}`,
+        //   "Car Wash Notifications"
+        // );
         res.status(500).send();
       }
     } else {
@@ -695,10 +697,10 @@ app.post("/processcarwash", async (req, res) => {
     }
   } catch (e) {
     console.log(e);
-    sendMessageToDiscord(
-      `ERROR WITH CAR WASH: ${e}\n\nSignature (if exists): ${signature}`,
-      "Car Wash Notifications"
-    );
+    // sendMessageToDiscord(
+    //   `ERROR WITH CAR WASH: ${e}\n\nSignature (if exists): ${signature}`,
+    //   "Car Wash Notifications"
+    // );
     res.status(500).send();
   }
 });

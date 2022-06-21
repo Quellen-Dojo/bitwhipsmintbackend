@@ -677,7 +677,7 @@ app.post("/processcarwash", async (req, res) => {
         postTokenBalances,
         100 * 10 ** 9
       ) &&
-      to.toBase58() === "H3WkH9HCWFP7jXN12RnJHZmis6ymv8yAx8jYQNTX4sHU" &&
+      // to.toBase58() === "H3WkH9HCWFP7jXN12RnJHZmis6ymv8yAx8jYQNTX4sHU" &&
       fromWallet === from.toBase58() &&
       !tokenMeta["Washed"]
     ) {

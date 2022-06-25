@@ -1,30 +1,36 @@
-require("dotenv").config();
-const express = require("express");
-const cors = require("cors");
-const app = express();
-const { https } = require("follow-redirects");
-const DiscordOAuth = require("discord-oauth2");
-const IPFS = require("ipfs-http-client");
-const bs58 = require("bs58");
-const tweetnacl = require("tweetnacl");
-const { PublicKey, Connection } = require("@solana/web3.js");
-const { TOKEN_PROGRAM_ID } = require("@solana/spl-token");
-const { Metadata } = require("@metaplex-foundation/mpl-token-metadata");
-
-const { generateCleanUploadAndUpdate } = require("./utils/carwash/functions");
-const {
-  getNumberInModel,
-  createLandevoMetadataMongo,
+import {
   BWDiscordLink,
   BWHolderLink,
   CarwashCount,
+  createLandevoMetadataMongo,
+  getNumberInModel,
+  GojiraMetadata,
   LandevoMetadata,
   TeslerrMetadata,
   TreeFiddyMetadata,
-  GojiraMetadata,
-} = require("./utils/mongo");
+} from "./utils/mongo";
+import { https } from "follow-redirects";
+import { DiamondVaultAPIResponse, NFTMetadata } from "./utils/types";
+import { Connection, PublicKey } from "@solana/web3.js";
+import express from "express";
+import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { generateCleanUploadAndUpdate } from "./utils/carwash/functions";
+import bs58 from "bs58";
+import { programs } from "@metaplex/js";
+import { metadata } from "@metaplex/js/lib/programs";
+
+require("dotenv").config();
+const cors = require("cors");
+const app = express();
+const DiscordOAuth = require("discord-oauth2");
+const tweetnacl = require("tweetnacl");
+const IPFS = require("ipfs-http-client");
 
 const carwashCountDoc = process.env.carwashCountDoc;
+
+const {
+  metadata: { Metadata },
+} = programs;
 
 // Test
 const whitelistSpots = 700;
@@ -45,7 +51,7 @@ const IPFSClient = IPFS.create({
   apiPath: "/api/v0",
 });
 
-const rpcConn = new Connection(process.env.rpcEndpoint, {
+const rpcConn = new Connection(process.env.rpcEndpoint!, {
   commitment: "confirmed",
   confirmTransactionInitialTimeout: 100000,
 });
@@ -56,7 +62,7 @@ let currentKey = process.env.accessKey;
  *
  * @param {string} mintAddress
  */
-async function fetchMetadataOfToken(mintAddress) {
+async function fetchMetadataOfToken(mintAddress: string) {
   const topLevel = await Metadata.load(
     rpcConn,
     await Metadata.getPDA(new PublicKey(mintAddress))
@@ -65,14 +71,18 @@ async function fetchMetadataOfToken(mintAddress) {
 }
 
 //TODO: Validate by testing against the network
-function validateWallet(wallet) {
+function validateWallet(wallet: string) {
   //In base58, there is no 0, O, l, or I in the wallet string.
   const walletRegex = /^[\w^0OIl]{43,44}$/g; //44-length string with only alphanumeric characters and not the above characters
   return walletRegex.test(wallet);
 }
 
-function sendMessageToDiscord(message, username, avatarImageUrl = "") {
-  const discordMsg = https.request(process.env.discordWebhook, {
+function sendMessageToDiscord(
+  message: string,
+  username: string,
+  avatarImageUrl = ""
+) {
+  const discordMsg = https.request(process.env.discordWebhook!, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
@@ -86,8 +96,12 @@ function sendMessageToDiscord(message, username, avatarImageUrl = "") {
   discordMsg.end();
 }
 
-function sendHolderMessageToDiscord(message, username, avatarImageUrl = "") {
-  const discordMsg = https.request(process.env.holderWebhook, {
+function sendHolderMessageToDiscord(
+  message: string,
+  username: string,
+  avatarImageUrl = ""
+) {
+  const discordMsg = https.request(process.env.holderWebhook!, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
@@ -102,8 +116,11 @@ function sendHolderMessageToDiscord(message, username, avatarImageUrl = "") {
 }
 
 //Check if discord link already exists
-async function checkDiscordLink(discordId, wallet = null) {
-  ret = { exists: false, wallet: undefined };
+async function checkDiscordLink(discordId: string, wallet = null) {
+  let ret: { exists: boolean; wallet?: string } = {
+    exists: false,
+    wallet: undefined,
+  };
   let dataRes = await BWDiscordLink.findOne({ discordId: discordId }).exec();
   if (wallet && dataRes === null) {
     dataRes = await BWDiscordLink.findOne({ wallet: wallet }).exec();
@@ -115,7 +132,7 @@ async function checkDiscordLink(discordId, wallet = null) {
   return ret;
 }
 
-function postRequest(url, payload) {
+function postRequest(url: string, payload: object): Promise<any> {
   return new Promise((resolve, reject) => {
     const arReq = https.request(
       url,
@@ -139,21 +156,22 @@ function postRequest(url, payload) {
   });
 }
 
-function redirectThroughArweave(url) {
-  return new Promise((resolve, reject) => {
-    const arReq = https.get(
+function redirectThroughArweave(url: string) {
+  return new Promise<any | null>((resolve, reject) => {
+    https.get(
       url,
       { headers: { "Content-Type": "application/json" } },
       (res) => {
         try {
           let data = "";
           res.on("data", (d) => (data += d.toString()));
-          res.on("error", () => reject());
+          res.on("error", () => reject(null));
           res.on("end", () => {
-            resolve(JSON.parse(data));
+            const resolved = JSON.parse(data);
+            resolve(resolved);
           });
         } catch {
-          reject();
+          reject(null);
         }
       }
     );
@@ -162,10 +180,8 @@ function redirectThroughArweave(url) {
 
 /**
  * Verify that the metadata from a BitWhip actually belongs to BitWhips
- * @param {Metadata} metadata
- * @returns {boolean}
  */
-function verifyMetadata(metadata) {
+function verifyMetadata(metadata: typeof Metadata.prototype) {
   if (!metadata.data.data.creators) {
     return false;
   }
@@ -194,18 +210,16 @@ function verifyMetadata(metadata) {
   return valid;
 }
 
-function getAllMetadataFromArrayOfMints(mints, topLevel = false) {
-  /**
-   *
-   * @param {object} data
-   * @param {string} hash
-   * @param {boolean?} topLevel
-   */
-  const appendTopLevelMetadata = (data, hash, topLevel) => {
+function getAllMetadataFromArrayOfMints(mints: string[], topLevel = false) {
+  const appendTopLevelMetadata = (
+    data: NFTMetadata,
+    mint: string,
+    topLevel: boolean
+  ) => {
     if (!topLevel) {
       return data;
     } else {
-      data["mint"] = hash;
+      data["mint"] = mint;
     }
     return data;
   };
@@ -213,17 +227,17 @@ function getAllMetadataFromArrayOfMints(mints, topLevel = false) {
   return new Promise(async (resolve, reject) => {
     try {
       const BitWhips = [];
-      for (hash of mints) {
+      for (const mint of mints) {
         try {
           const tokenMeta = await Metadata.load(
             rpcConn,
-            await Metadata.getPDA(hash)
+            await Metadata.getPDA(mint)
           );
           if (verifyMetadata(tokenMeta)) {
             BitWhips.push(
               appendTopLevelMetadata(
                 await redirectThroughArweave(tokenMeta.data.data.uri),
-                hash,
+                mint,
                 topLevel
               )
             );
@@ -237,7 +251,7 @@ function getAllMetadataFromArrayOfMints(mints, topLevel = false) {
       resolve(BitWhips);
     } catch (e2) {
       console.log(`Error in grabbing metadata from list: ${e2}`);
-      reject(e2.toString());
+      reject();
     }
   });
 }
@@ -249,7 +263,11 @@ function getAllMetadataFromArrayOfMints(mints, topLevel = false) {
  * @param {string} rpcFunction
  * @returns {Promise<object>}
  */
-function sendJSONRPCRequest(paramsArray, httpMethod, rpcFunction) {
+function sendJSONRPCRequest(
+  paramsArray: any[],
+  httpMethod: string,
+  rpcFunction: string
+) {
   return new Promise((resolve, reject) => {
     const baseReq = {
       jsonrpc: "2.0",
@@ -258,7 +276,7 @@ function sendJSONRPCRequest(paramsArray, httpMethod, rpcFunction) {
       params: [...paramsArray, { encoding: "jsonParsed" }],
     };
     const newReq = https.request(
-      process.env.rpcEndpoint,
+      process.env.rpcEndpoint!,
       { method: httpMethod, headers: { "Content-Type": "application/json" } },
       (res) => {
         let data = "";
@@ -276,45 +294,28 @@ function sendJSONRPCRequest(paramsArray, httpMethod, rpcFunction) {
   });
 }
 
-/**
- *
- * @param {string} wallet
- */
-function getAllBitWhips(wallet, topLevel = false) {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const tokenReq = await sendJSONRPCRequest(
-        [wallet, { programId: TOKEN_PROGRAM_ID.toBase58() }],
-        "POST",
-        "getTokenAccountsByOwner"
-      );
-      // console.log(tokenReq);
-      const tokenMints = tokenReq.result.value
-        .filter((v) => v.account.data.parsed.info.tokenAmount.amount > 0)
-        .map((v) => v.account.data.parsed.info.mint);
-      // console.log(tokenMints);
-      resolve(await getAllMetadataFromArrayOfMints(tokenMints, topLevel));
-    } catch (e) {
-      // console.log(`Error in getAllBitWhips(): ${e}`);
-      reject(e);
-    }
-  });
+async function getAllBitWhips(wallet: string, topLevel = false) {
+  try {
+    const tokenReq = (
+      await rpcConn.getParsedTokenAccountsByOwner(
+        new PublicKey(wallet),
+        { programId: TOKEN_PROGRAM_ID },
+        "confirmed"
+      )
+    ).value
+      .filter((v) => v.account.data.parsed.info.tokenAmount.uiAmount === 1)
+      .map((v) => v.account.data.parsed.info.mint);
+    return await getAllMetadataFromArrayOfMints(tokenReq, topLevel);
+  } catch (e) {
+    console.log(e);
+  }
 }
 
-/**
- *
- * @param {Number} ms
- * @returns {Promise<void>}
- */
-function sleep(ms) {
+function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-/**
- *
- * @param {String} signature
- */
-async function retryGetTransaction(signature, retries = 4) {
+async function retryGetTransaction(signature: string, retries = 4) {
   for (let i = 0; i < retries; i++) {
     try {
       const txn = await rpcConn.getTransaction(signature);
@@ -330,10 +331,12 @@ async function retryGetTransaction(signature, retries = 4) {
   throw new Error("Could not grab transaction!");
 }
 
+type TxnTokenBalance = { uiTokenAmount: { amount: string } }[];
+
 function validateTxnTransferAmounts(
-  preTokenBalances,
-  postTokenBalances,
-  lamports
+  preTokenBalances: TxnTokenBalance,
+  postTokenBalances: TxnTokenBalance,
+  lamports: number
 ) {
   const fromSent =
     parseInt(preTokenBalances[0].uiTokenAmount.amount) -
@@ -351,14 +354,14 @@ function validateTxnTransferAmounts(
  * @param {string} wallet
  * @returns {Promise<[number, string[]]>}
  */
-async function getNumOfBitWhipsInitial(wallet) {
+async function getNumOfBitWhipsInitial(wallet: string) {
   const pubkey = new PublicKey(wallet);
-  const accs = await sendJSONRPCRequest(
-    [wallet, { programId: TOKEN_PROGRAM_ID.toBase58() }],
-    "POST",
-    "getTokenAccountsByOwner"
-  );
-  const tokenMints = accs.result.value
+  const accs = (
+    await rpcConn.getParsedTokenAccountsByOwner(new PublicKey(wallet), {
+      programId: TOKEN_PROGRAM_ID,
+    })
+  ).value;
+  const tokenMints: string[] = accs
     .filter((v) => v.account.data.parsed.info.tokenAmount.amount > 0)
     .map((v) => v.account.data.parsed.info.mint);
 
@@ -376,13 +379,13 @@ async function getNumOfBitWhipsInitial(wallet) {
   return [numOf, mints];
 }
 
-async function getNumOfBitWhipsRecheck(wallet) {
-  const tokenReq = await sendJSONRPCRequest(
-    [wallet, { programId: TOKEN_PROGRAM_ID.toBase58() }],
-    "POST",
-    "getTokenAccountsByOwner"
-  );
-  const tokenMints = tokenReq.result.value
+async function getNumOfBitWhipsRecheck(wallet: string) {
+  const accs = (
+    await rpcConn.getParsedTokenAccountsByOwner(new PublicKey(wallet), {
+      programId: TOKEN_PROGRAM_ID,
+    })
+  ).value;
+  const tokenMints: string[] = accs
     .filter((v) => v.account.data.parsed.info.tokenAmount.amount > 0)
     .map((v) => v.account.data.parsed.info.mint);
 
@@ -394,7 +397,7 @@ async function getNumOfBitWhipsRecheck(wallet) {
   );
 }
 
-function verifySignature(msg, pubKey, signature) {
+function verifySignature(msg: string, pubKey: string, signature: string) {
   return tweetnacl.sign.detached.verify(
     new TextEncoder().encode(msg),
     bs58.decode(signature),
@@ -441,7 +444,13 @@ app.post("/submit", async (req, res) => {
 app.get("/holderstatus", async (req, res) => {
   const { wallet, signature } = req.query;
   if (
-    verifySignature("I AM MY BITWHIP AND MY BITWHIP IS ME!", wallet, signature)
+    wallet &&
+    signature &&
+    verifySignature(
+      "I AM MY BITWHIP AND MY BITWHIP IS ME!",
+      wallet as string,
+      signature as string
+    )
   ) {
     res.json({
       valid: (await BWHolderLink.findOne({ wallet: wallet }).exec()) != null,
@@ -490,12 +499,14 @@ app.get("/holderdiscordcheck", async (req, res) => {
 app.get("/dolphinstatus", async (req, res) => {
   const { wallet, signature } = req.query;
   if (
+    wallet &&
+    signature &&
     verifySignature(
       "I AM MY BITWHIP AND MY BITWHIP IS ME!",
-      wallet,
-      signature
+      wallet as string,
+      signature as string
     ) &&
-    (await getNumOfBitWhipsRecheck(wallet)) >= 5
+    (await getNumOfBitWhipsRecheck(wallet as string)) >= 5
   ) {
     res.json({ valid: true });
   } else {
@@ -506,9 +517,9 @@ app.get("/dolphinstatus", async (req, res) => {
 app.post("/recheckHolders", async (req, res) => {
   const { key } = req.body;
   if (key === currentKey) {
-    let validRes = {};
-    let invalidRes = [];
-    let staked;
+    let validRes: { [discordId: string]: number } = {};
+    let invalidRes: string[] = [];
+    let staked: DiamondVaultAPIResponse | undefined;
     try {
       staked = await postRequest(
         "https://us-central1-nft-anybodies.cloudfunctions.net/API_V2_GetVaultStakerData",
@@ -518,7 +529,7 @@ app.post("/recheckHolders", async (req, res) => {
 
     const holderDocs = await BWHolderLink.find({}).exec();
     for (const doc of holderDocs) {
-      let holdingNum = await getNumOfBitWhipsRecheck(doc.wallet);
+      let holdingNum = await getNumOfBitWhipsRecheck(doc.wallet!);
       if (staked) {
         const stakedEntry = staked.filter((v) => v["_id"] === doc.wallet);
         if (stakedEntry.length > 0) {
@@ -526,9 +537,9 @@ app.post("/recheckHolders", async (req, res) => {
         }
       }
       if (holdingNum > 0) {
-        validRes[doc.discordId] = holdingNum;
+        validRes[doc.discordId!] = holdingNum;
       } else {
-        invalidRes.push(doc.discordId);
+        invalidRes.push(doc.discordId!);
         await BWHolderLink.deleteMany({ wallet: doc.wallet }).exec();
       }
     }
@@ -540,7 +551,10 @@ app.post("/recheckHolders", async (req, res) => {
 
 app.post("/submitForHolderVerif", async (req, res) => {
   const { discordId, wallet, signature } = req.body;
-  const jsonRes = { error: null, success: false };
+  const jsonRes: { error: boolean; success: boolean } = {
+    error: false,
+    success: false,
+  };
   console.log(`Holder Verif: ${discordId} ${wallet} ${signature}`);
   if (
     discordId &&
@@ -558,7 +572,7 @@ app.post("/submitForHolderVerif", async (req, res) => {
         ).exec();
       } else {
         await BWHolderLink.create({ discordId: discordId, wallet: wallet });
-        let staked;
+        let staked: DiamondVaultAPIResponse | undefined;
         try {
           staked = await postRequest(
             "https://us-central1-nft-anybodies.cloudfunctions.net/API_V2_GetVaultStakerData",
@@ -593,9 +607,9 @@ app.post("/submitForHolderVerif", async (req, res) => {
 
 app.get("/washedcars", async (req, res) => {
   try {
-    const washedcars = (
-      await CarwashCount.findOne({ _id: carwashCountDoc }).exec()
-    ).amount;
+    const washedcars = (await CarwashCount.findOne({
+      _id: carwashCountDoc,
+    }).exec())!.amount;
     res.json({ amount: washedcars }).send();
   } catch {
     res.status(500).send();
@@ -608,7 +622,7 @@ app.get("/fulllandevodata", async (req, res) => {
     try {
       const metadataList = [];
       const docs = await LandevoMetadata.find({}).exec();
-      for (doc of docs) {
+      for (const doc of docs) {
         metadataList.push(doc.metadata);
       }
       res.json(metadataList).send();
@@ -626,7 +640,7 @@ app.get("/fullteslerrdata", async (req, res) => {
     try {
       const metadataList = [];
       const docs = await TeslerrMetadata.find({}).exec();
-      for (doc of docs) {
+      for (const doc of docs) {
         metadataList.push(doc.metadata);
       }
       res.json(metadataList).send();
@@ -644,7 +658,7 @@ app.get("/fulltreefiddydata", async (req, res) => {
     try {
       const metadataList = [];
       const docs = await TreeFiddyMetadata.find({}).exec();
-      for (doc of docs) {
+      for (const doc of docs) {
         metadataList.push(doc.metadata);
       }
       res.json(metadataList).send();
@@ -668,13 +682,13 @@ app.post("/processcarwash", async (req, res) => {
     const [from, fromAta, to] = txn.transaction.message.accountKeys;
     console.log(`From: ${from.toBase58()}`);
     console.log(`To: ${to.toBase58()}`);
-    const { postTokenBalances, preTokenBalances } = txn.meta;
+    const { postTokenBalances, preTokenBalances } = txn.meta!;
     // Full price 200000000
     // Debug price: 1000000
     if (
       validateTxnTransferAmounts(
-        preTokenBalances,
-        postTokenBalances,
+        preTokenBalances as TxnTokenBalance,
+        postTokenBalances as TxnTokenBalance,
         100 * 10 ** 9
       ) &&
       // to.toBase58() === "H3WkH9HCWFP7jXN12RnJHZmis6ymv8yAx8jYQNTX4sHU" &&
@@ -707,9 +721,13 @@ app.post("/processcarwash", async (req, res) => {
 
 app.get("/getallwhips", async (req, res) => {
   const { wallet, username, includeTopLevel } = req.query;
-  if (validateWallet(wallet)) {
+  if (validateWallet(wallet as string)) {
     try {
-      res.json(await getAllBitWhips(wallet, includeTopLevel === "true")).send();
+      res
+        .json(
+          await getAllBitWhips(wallet as string, includeTopLevel === "true")
+        )
+        .send();
     } catch (e) {
       console.log(e);
       res.status(500).send();
@@ -721,9 +739,9 @@ app.get("/getallwhips", async (req, res) => {
 
 app.get("/easygetallwhips", async (req, res) => {
   const { wallet, username, includeTopLevel } = req.query;
-  if (validateWallet(wallet)) {
+  if (validateWallet(wallet as string)) {
     try {
-      const getMetaFromMongo = async (mint) => {
+      const getMetaFromMongo = async (mint: string) => {
         const landevoRes = await LandevoMetadata.findOne({
           mintAddress: mint,
         }).exec();
@@ -751,13 +769,14 @@ app.get("/easygetallwhips", async (req, res) => {
         return null;
       };
 
-      const tokenReq = await sendJSONRPCRequest(
-        [wallet, { programId: TOKEN_PROGRAM_ID.toBase58() }],
-        "POST",
-        "getTokenAccountsByOwner"
-      );
-      // console.log(tokenReq);
-      const tokenMetas = tokenReq.result.value
+      const tokenReq = await (
+        await rpcConn.getParsedTokenAccountsByOwner(
+          new PublicKey(wallet as string),
+          { programId: TOKEN_PROGRAM_ID },
+          "confirmed"
+        )
+      ).value;
+      const tokenMetas = tokenReq
         .filter((v) => v.account.data.parsed.info.tokenAmount.amount > 0)
         .map((v) => v.account.data.parsed.info.mint);
       const result = [];
@@ -824,7 +843,7 @@ app.post("/manualdiscwalletlink", async (req, res) => {
 app.get("/islinkedtodiscord", async (req, res) => {
   const { key, discordId } = req.query;
   if (key === currentKey) {
-    res.json(await checkDiscordLink(discordId)).send();
+    res.json(await checkDiscordLink(discordId as string)).send();
   } else {
     res.status(401).send();
   }
@@ -885,7 +904,12 @@ app.post("/linkdiscord", async (req, res) => {
     if (key === currentKey) {
       const checkRes = await checkDiscordLink(discordId, wallet);
       const whitelistedNum = await getNumberInModel(BWDiscordLink);
-      const jsonRes = {
+      const jsonRes: {
+        exists: boolean;
+        wallet?: string;
+        created: boolean;
+        closed: boolean;
+      } = {
         exists: false,
         wallet: undefined,
         created: false,
@@ -948,13 +972,12 @@ app.get("/walletbydiscord", async (req, res) => {
 app.get("/discordbywallet", async (req, res) => {
   const { key, wallet } = req.query;
   if (key === currentKey) {
-    BWDiscordLink.find({ wallet: wallet }, (err, doc) => {
-      if (err) {
-        res.status(404).send();
-      } else {
-        res.json({ wallet: doc[0].discordId }).send();
-      }
-    });
+    const thing = await BWDiscordLink.findOne({ wallet }).exec();
+    if (thing) {
+      res.json({ wallet: thing.discordId });
+    } else {
+      res.json({ wallet: null });
+    }
   } else {
     res.status(401).send();
   }

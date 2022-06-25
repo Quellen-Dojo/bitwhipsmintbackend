@@ -7,8 +7,10 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "copy-layers": "cp src/gojira_layers dist/gojira_layers -r && cp src/treefiddy_layers dist/treefiddy_layers -r && cp src/teslerr_layers dist/teslerr_layers -r && cp src/landevo_layers dist/landevo_layers -r",
     "build": "tsc && yarn copy-layers",
+    "build-win": "tsc && robocopy src/gojira_layers dist/gojira_layers /E && robocopy src/treefiddy_layers dist/treefiddy_layers /E && robocopy src/teslerr_layers dist/teslerr_layers /E && robocopy src/landevo_layers dist/landevo_layers /E",
     "start": "yarn build && node dist/index.js",
-    "start-win": "tsc && node dist/index.js"
+    "start-win": "yarn build-win && node dist/index.js",
+    "prepare": "husky install"
   },
   "keywords": [],
   "author": "",

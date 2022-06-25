@@ -700,10 +700,11 @@ app.post("/processcarwash", async (req, res) => {
         await generateCleanUploadAndUpdate(tokenMeta, type, IPFSClient);
         res.status(200).send();
       } catch (generationError) {
-        sendMessageToDiscord(
-          `<@&898643399299694622> <@&900148882489634836> **SERIOUS ERROR WITH THE CARWASH**\n\nTxn Signature: ${signature}\n\nMint Address: ${nft.mint}\n\nWe may have to refund this transaction!\n\n${generationError}`,
-          "Car Wash Notifications"
-        );
+        console.log(generationError);
+        // sendMessageToDiscord(
+        //   `<@&898643399299694622> <@&900148882489634836> **SERIOUS ERROR WITH THE CARWASH**\n\nTxn Signature: ${signature}\n\nMint Address: ${nft.mint}\n\nWe may have to refund this transaction!\n\n${generationError}`,
+        //   "Car Wash Notifications"
+        // );
         res.status(500).send();
       }
     } else {
@@ -711,10 +712,10 @@ app.post("/processcarwash", async (req, res) => {
     }
   } catch (e) {
     console.log(e);
-    sendMessageToDiscord(
-      `ERROR WITH CAR WASH: ${e}\n\nSignature (if exists): ${signature}`,
-      "Car Wash Notifications"
-    );
+    // sendMessageToDiscord(
+    //   `ERROR WITH CAR WASH: ${e}\n\nSignature (if exists): ${signature}`,
+    //   "Car Wash Notifications"
+    // );
     res.status(500).send();
   }
 });

@@ -11,7 +11,7 @@ import { incrementWash, updateNFTMetadataMongo } from "../mongo";
 import { CarType, NFTMetadata } from "../types";
 import { Image, Canvas } from "canvas";
 import { NodeWallet, actions, programs } from "@metaplex/js";
-const mergeImages = require("merge-images");
+import mergeImages from "merge-images";
 const { PublicKey, Connection, Keypair } = require("@solana/web3.js");
 const bs58 = require("bs58");
 const https = require("https");
@@ -39,7 +39,7 @@ function findFileFromTrait(
   carType: CarType
 ) {
   return new Promise((resolve, reject) => {
-    fs.readdir(`./${carType}_layers/${category}/`, (err, files) => {
+    fs.readdir(`./dist/${carType}_layers/${category}/`, (err, files) => {
       if (err) {
         reject(`Error locating category ${category}`);
       } else {
@@ -129,7 +129,7 @@ export async function generateCleanUploadAndUpdate(
       carType
     );
     imageSources.push(
-      `./${carType}_layers/` +
+      `./dist/${carType}_layers/` +
         trait["trait_type"] +
         "/" +
         (await findFileFromTrait(
@@ -144,7 +144,7 @@ export async function generateCleanUploadAndUpdate(
     });
   }
 
-  imageSources.push(`./${carType}_layers/Washed/Washed.png`);
+  imageSources.push(`./dist/${carType}_layers/Washed/Washed.png`);
 
   const newImage = await mergeImages(imageSources, {
     Canvas: Canvas,
@@ -202,9 +202,3 @@ export async function generateCleanUploadAndUpdate(
 
   return;
 }
-
-module.exports = {
-  generateCleanUploadAndUpdate,
-  getCleanVersion,
-  findFileFromTrait,
-};

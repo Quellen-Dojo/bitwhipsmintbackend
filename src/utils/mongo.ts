@@ -4,7 +4,7 @@ import { CarType, NFTMetadata } from "./types";
 require("dotenv").config();
 
 mongoose.connect(
-  `mongodb+srv://quellen:${process.env.mongopass}@cluster0.jxtal.mongodb.net/BitWhips?retryWrites=true&w=majority`
+  `mongodb+srv://quellen:${process.env.mongopass}@cluster0.jxtal.mongodb.net/dojodb?retryWrites=true&w=majority`
 );
 
 const Schema = mongoose.Schema;

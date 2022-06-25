@@ -18,6 +18,7 @@ import { generateCleanUploadAndUpdate } from "./utils/carwash/functions";
 import bs58 from "bs58";
 import { programs } from "@metaplex/js";
 import { metadata } from "@metaplex/js/lib/programs";
+import * as fs from "fs";
 
 require("dotenv").config();
 const cors = require("cors");
@@ -983,6 +984,12 @@ app.post("/rollkey", async (req, res) => {
   const { key, newKey } = req.body;
   if (key === currentKey) {
     currentKey = newKey;
+  }
+});
+
+fs.readdir(".", (err, files) => {
+  if (!err) {
+    console.log(files);
   }
 });
 

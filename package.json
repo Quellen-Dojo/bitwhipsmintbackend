@@ -1,0 +1,52 @@
+{
+  "name": "mintbackend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "copy-layers": "cp src/gojira_layers dist/gojira_layers -r && cp src/treefiddy_layers dist/treefiddy_layers -r && cp src/teslerr_layers dist/teslerr_layers -r && cp src/landevo_layers dist/landevo_layers -r",
+    "build": "tsc && yarn copy-layers",
+    "build-win": "tsc && robocopy src/gojira_layers dist/gojira_layers /E && robocopy src/treefiddy_layers dist/treefiddy_layers /E && robocopy src/teslerr_layers dist/teslerr_layers /E && robocopy src/landevo_layers dist/landevo_layers /E",
+    "start": "yarn build && node dist/index.js",
+    "start-win": "yarn build-win && node dist/index.js",
+    "prepare": "husky install"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@metaplex/js": "^4.11.2",
+    "@project-serum/anchor": "^0.25.0-beta.1",
+    "bs58": "^5.0.0",
+    "canvas": "^2.9.3",
+    "cors": "^2.8.5",
+    "discord-oauth2": "^2.10.0",
+    "dotenv": "^16.0.1",
+    "express": "^4.17.1",
+    "follow-redirects": "^1.14.8",
+    "ipfs-http-client": "^56.0.3",
+    "merge-images": "^2.0.0",
+    "mongoose": "^6.0.14",
+    "tweetnacl": "^1.0.3",
+    "typescript": "^4.7.4"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.13",
+    "@types/follow-redirects": "^1.14.1",
+    "@types/merge-images": "^1.2.1",
+    "husky": "^8.0.1",
+    "lint-staged": "^13.0.3",
+    "prettier": "^2.7.1"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "lint-staged": {
+    "src/**/*.ts": [
+      "prettier --write"
+    ]
+  }
+}

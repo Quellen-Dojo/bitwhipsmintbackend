@@ -39,7 +39,7 @@ function findFileFromTrait(
   carType: CarType
 ) {
   return new Promise((resolve, reject) => {
-    fs.readdir(`./dist/${carType}_layers/${category}/`, (err, files) => {
+    fs.readdir(`./dist/layers/${carType}_layers/${category}/`, (err, files) => {
       if (err) {
         reject(`Error locating category ${category}`);
       } else {
@@ -129,7 +129,7 @@ export async function generateCleanUploadAndUpdate(
       carType
     );
     imageSources.push(
-      `./dist/${carType}_layers/` +
+      `./dist/layers/${carType}_layers/` +
         trait["trait_type"] +
         "/" +
         (await findFileFromTrait(
@@ -144,7 +144,7 @@ export async function generateCleanUploadAndUpdate(
     });
   }
 
-  imageSources.push(`./dist/${carType}_layers/Washed/Washed.png`);
+  imageSources.push(`./dist/layers/${carType}_layers/Washed/Washed.png`);
 
   const newImage = await mergeImages(imageSources, {
     Canvas: Canvas,

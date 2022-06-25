@@ -987,7 +987,7 @@ app.post("/rollkey", async (req, res) => {
   }
 });
 
-fs.readdir("./src", (err, files) => {
+fs.readdir("./src/layers", (err, files) => {
   if (!err) {
     console.log(files);
   }

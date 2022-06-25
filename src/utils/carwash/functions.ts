@@ -31,7 +31,7 @@ const rpcConn = new Connection(process.env.rpcEndpoint, {
   commitment: "confirmed",
   confirmTransactionInitialTimeout: 100000,
 });
-const removeWeightRegex = /^([\w\s&]+)/;
+const removeWeightRegex = /^([\w\s&]+)/; //bump
 
 function findFileFromTrait(
   category: string,

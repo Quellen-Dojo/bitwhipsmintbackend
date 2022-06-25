@@ -632,6 +632,24 @@ app.get("/fulltreefiddydata", async (req, res) => {
   }
 });
 
+app.get("/fullgojiradata", async (req, res) => {
+  const { key } = req.query;
+  if (key === currentKey) {
+    try {
+      const metadataList = [];
+      const docs = await GojiraMetadata.find({}).exec();
+      for (const doc of docs) {
+        metadataList.push(doc.metadata);
+      }
+      res.json(metadataList).send();
+    } catch {
+      res.status(500).send();
+    }
+  } else {
+    res.status(403).send();
+  }
+});
+
 app.post("/processcarwash", async (req, res) => {
   const { signature, nft, fromWallet, type } = req.body;
   try {

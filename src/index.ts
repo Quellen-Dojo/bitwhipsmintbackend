@@ -987,10 +987,4 @@ app.post("/rollkey", async (req, res) => {
   }
 });
 
-fs.readdir("./src/layers", (err, files) => {
-  if (!err) {
-    console.log(files);
-  }
-});
-
 app.listen(process.env.PORT || 3002, () => console.log("Listening..."));

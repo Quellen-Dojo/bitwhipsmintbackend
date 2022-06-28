@@ -1,3 +1,5 @@
+import { PublicKey } from "@solana/web3.js";
+
 export const landevoDirtyVersions: DirtyVersionTable = {
   Body: {
     "Beach Carbon": [
@@ -249,3 +251,11 @@ export type DirtyVersionTable = {
     [cleanTrait: string]: string[];
   };
 };
+
+export const TREASURY_CLNT_ACCOUNT = new PublicKey(
+  "H3WkH9HCWFP7jXN12RnJHZmis6ymv8yAx8jYQNTX4sHU"
+);
+
+export const CLNT_MINT = new PublicKey(
+  "CLNTcXKJEqaiKZ53jMTXMuAnTmz7iULKPxSXy6aSaU66"
+);

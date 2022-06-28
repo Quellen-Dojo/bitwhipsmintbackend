@@ -6,15 +6,17 @@ import {
   landevoDirtyVersions,
   teslerrDirtyVersions,
   treeFiddyDirtyVersions,
-} from "../constants";
-import { incrementWash, updateNFTMetadataMongo } from "../mongo";
-import { CarType, NFTMetadata } from "../types";
+} from "../../utils/constants";
+import { incrementWash, updateNFTMetadataMongo } from "../../utils/mongo";
+import { CarType, NFTMetadata } from "../../utils/types";
 import { Image, Canvas } from "canvas";
 import { NodeWallet, actions, programs } from "@metaplex/js";
 import mergeImages from "merge-images";
-const { PublicKey, Connection, Keypair } = require("@solana/web3.js");
-const bs58 = require("bs58");
-const https = require("https");
+import { sleep } from "../../utils/utils";
+import { Keypair, PublicKey } from "@solana/web3.js";
+import bs58 from "bs58";
+import { https } from "follow-redirects";
+import { rpcConn } from "../..";
 require("dotenv").config();
 
 const {
@@ -23,21 +25,17 @@ const {
 
 const treasuryWallet = new NodeWallet(
   Keypair.fromSecretKey(
-    Uint8Array.from(bs58.decode(process.env.treasuryWallet))
+    Uint8Array.from(bs58.decode(process.env.treasuryWallet!))
   )
 );
 
-const rpcConn = new Connection(process.env.rpcEndpoint, {
-  commitment: "confirmed",
-  confirmTransactionInitialTimeout: 100000,
-});
-const removeWeightRegex = /^([\w\s&]+)/; //bump
+const removeWeightRegex = /^([\w\s&]+)/;
 
-function findFileFromTrait(
+const findFileFromTrait = (
   category: string,
   trait_name: string,
   carType: CarType
-) {
+) => {
   return new Promise((resolve, reject) => {
     fs.readdir(`./dist/layers/${carType}_layers/${category}/`, (err, files) => {
       if (err) {
@@ -58,14 +56,14 @@ function findFileFromTrait(
       }
     });
   });
-}
+};
 
-function sendMessageToDiscord(
+const sendMessageToDiscord = (
   message: string,
   username: string,
   avatarImageUrl = ""
-) {
-  const discordMsg = https.request(process.env.discordWebhook, {
+) => {
+  const discordMsg = https.request(process.env.discordWebhook!, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
@@ -77,13 +75,13 @@ function sendMessageToDiscord(
     })
   );
   discordMsg.end();
-}
+};
 
-async function getCleanVersion(
+const getCleanVersion = async (
   category: string,
   trait_name: string,
   carType: CarType
-) {
+) => {
   let cleanTable: DirtyVersionTable;
   switch (carType) {
     case "landevo":
@@ -112,14 +110,14 @@ async function getCleanVersion(
     throw new Error("cleanTable was never set! (getCleanVerison)");
   }
   return trait_name;
-}
+};
 
-export async function generateCleanUploadAndUpdate(
+export const generateCleanUploadAndUpdate = async (
   metadata: NFTMetadata,
   carType: CarType,
   IPFSClient: IPFSHTTPClient
-) {
-  let pureNewAttributes = [];
+) => {
+  const pureNewAttributes = [];
   const mintAddress = metadata.mint;
   const imageSources = [];
   for (const trait of metadata["attributes"]) {
@@ -181,7 +179,7 @@ export async function generateCleanUploadAndUpdate(
   });
   console.log(`JSON CID: ${newJSONCID.cid.toV0().toString()}`);
 
-  const mintAddressPublicKey = new PublicKey(mintAddress);
+  const mintAddressPublicKey = new PublicKey(mintAddress!);
   const topLevelMetadata = await Metadata.load(
     rpcConn,
     await Metadata.getPDA(mintAddressPublicKey)
@@ -201,4 +199,20 @@ export async function generateCleanUploadAndUpdate(
   await updateNFTMetadataMongo(mintAddress!, metadata, carType);
 
   return;
-}
+};
+
+export const retryGetTransaction = async (signature: string, retries = 4) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const txn = await rpcConn.getParsedTransaction(signature);
+      console.log(txn);
+      if (txn) {
+        return txn;
+      }
+    } catch (e) {
+      // console.log(e);
+    }
+    await sleep(1000);
+  }
+  throw new Error("Could not grab transaction!");
+};

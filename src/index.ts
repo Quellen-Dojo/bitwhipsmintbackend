@@ -19,6 +19,12 @@ import bs58 from "bs58";
 import { programs } from "@metaplex/js";
 import { metadata } from "@metaplex/js/lib/programs";
 import * as fs from "fs";
+import {
+  gojiraBlockedTraits,
+  landevoBlockedTraits,
+  teslerrBlockedTraits,
+  treeFiddyBlockedTraits,
+} from "./utils/carwash/blockedTraits";
 
 require("dotenv").config();
 const cors = require("cors");
@@ -735,36 +741,63 @@ app.get("/easygetallwhips", async (req, res) => {
         .filter((v) => v.account.data.parsed.info.tokenAmount.uiAmount === 1)
         .map((v) => v.account.data.parsed.info.mint);
 
-      const landevoRes = (
-        await LandevoMetadata.find({
-          mintAddress: tokenMints,
-        }).exec()
-      ).map((v) => {
-        return { ...v.metadata, mint: v.mintAddress };
-      });
-      const teslerrRes = (
-        await TeslerrMetadata.find({
-          mintAddress: tokenMints,
-        }).exec()
-      ).map((v) => {
-        return { ...v.metadata, mint: v.mintAddress };
-      });
-      const treefiddyRes = (
-        await TreeFiddyMetadata.find({
-          mintAddress: tokenMints,
-        }).exec()
-      ).map((v) => {
-        return { ...v.metadata, mint: v.mintAddress };
-      });
-      const gojiraRes = (
-        await GojiraMetadata.find({
-          mintAddress: tokenMints,
-        }).exec()
-      ).map((v) => {
-        return { ...v.metadata, mint: v.mintAddress };
-      });
+      const landevos = (
+        await LandevoMetadata.find({ mintAddress: tokenMints }).exec()
+      )
+        .map((doc) => {
+          return { mint: doc.mintAddress, ...doc.metadata };
+        })
+        .filter((car) => {
+          return !car.attributes.some(
+            (attr) =>
+              attr.trait_type === "Washed" ||
+              landevoBlockedTraits.includes(attr.value)
+          );
+        });
 
-      res.json([...landevoRes, ...teslerrRes, ...treefiddyRes, ...gojiraRes]);
+      const teslerrs = (
+        await TeslerrMetadata.find({ mintAddress: tokenMints }).exec()
+      )
+        .map((doc) => {
+          return { mint: doc.mintAddress, ...doc.metadata };
+        })
+        .filter((car) => {
+          return !car.attributes.some(
+            (attr) =>
+              attr.trait_type === "Washed" ||
+              teslerrBlockedTraits.includes(attr.value)
+          );
+        });
+
+      const treefiddies = (
+        await TreeFiddyMetadata.find({ mintAddress: tokenMints }).exec()
+      )
+        .map((doc) => {
+          return { mint: doc.mintAddress, ...doc.metadata };
+        })
+        .filter((car) => {
+          return !car.attributes.some(
+            (attr) =>
+              attr.trait_type === "Washed" ||
+              treeFiddyBlockedTraits.includes(attr.value)
+          );
+        });
+
+      const gojiras = (
+        await GojiraMetadata.find({ mintAddress: tokenMints }).exec()
+      )
+        .map((doc) => {
+          return { mint: doc.mintAddress, ...doc.metadata };
+        })
+        .filter((car) => {
+          return !car.attributes.some(
+            (attr) =>
+              attr.trait_type === "Washed" ||
+              gojiraBlockedTraits.includes(attr.value)
+          );
+        });
+
+      res.json([...landevos, ...teslerrs, ...treefiddies, ...gojiras]);
     } catch (e) {
       console.log(e);
       res.status(500).send();

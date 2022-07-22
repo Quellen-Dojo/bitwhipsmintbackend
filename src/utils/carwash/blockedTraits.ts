@@ -28,6 +28,7 @@ export const teslerrBlockedTraits = [
   "Starbase",
   "Dexter",
   "Umbra Waifu",
+  "Custom",
 ];
 
 export const treeFiddyBlockedTraits = [
@@ -41,6 +42,7 @@ export const treeFiddyBlockedTraits = [
   "Oilio",
   "Cazzual",
   "Afib",
+  "Custom",
 ];
 
 export const gojiraBlockedTraits = [
@@ -55,4 +57,5 @@ export const gojiraBlockedTraits = [
   "Yung Quell",
   "Pirate",
   "Dixie",
+  "Custom",
 ];

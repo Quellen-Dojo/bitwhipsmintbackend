@@ -723,34 +723,6 @@ app.get("/easygetallwhips", async (req, res) => {
   const { wallet, username, includeTopLevel } = req.query;
   if (validateWallet(wallet as string)) {
     try {
-      const getMetaFromMongo = async (mint: string) => {
-        const landevoRes = await LandevoMetadata.findOne({
-          mintAddress: mint,
-        }).exec();
-        const teslerrRes = await TeslerrMetadata.findOne({
-          mintAddress: mint,
-        }).exec();
-        const treefiddyRes = await TreeFiddyMetadata.findOne({
-          mintAddress: mint,
-        }).exec();
-        const gojiraRes = await GojiraMetadata.findOne({
-          mintAddress: mint,
-        }).exec();
-        if (landevoRes) {
-          return { ...landevoRes.metadata, mint: mint };
-        }
-        if (teslerrRes) {
-          return { ...teslerrRes.metadata, mint: mint };
-        }
-        if (treefiddyRes) {
-          return { ...treefiddyRes.metadata, mint: mint };
-        }
-        if (gojiraRes) {
-          return { ...gojiraRes.metadata, mint: mint };
-        }
-        return null;
-      };
-
       const tokenReq = await (
         await rpcConn.getParsedTokenAccountsByOwner(
           new PublicKey(wallet as string),
@@ -758,18 +730,41 @@ app.get("/easygetallwhips", async (req, res) => {
           "confirmed"
         )
       ).value;
-      const tokenMetas = tokenReq
-        .filter((v) => v.account.data.parsed.info.tokenAmount.amount > 0)
-        .map((v) => v.account.data.parsed.info.mint);
-      const result = [];
-      for (const mintAdd of tokenMetas) {
-        const metaRes = await getMetaFromMongo(mintAdd);
-        if (metaRes) {
-          result.push(metaRes);
-        }
-      }
 
-      res.json(result);
+      const tokenMints = tokenReq
+        .filter((v) => v.account.data.parsed.info.tokenAmount.uiAmount === 1)
+        .map((v) => v.account.data.parsed.info.mint);
+
+      const landevoRes = (
+        await LandevoMetadata.find({
+          mintAddress: tokenMints,
+        }).exec()
+      ).map((v) => {
+        return { ...v.metadata, mint: v.mintAddress };
+      });
+      const teslerrRes = (
+        await TeslerrMetadata.find({
+          mintAddress: tokenMints,
+        }).exec()
+      ).map((v) => {
+        return { ...v.metadata, mint: v.mintAddress };
+      });
+      const treefiddyRes = (
+        await TreeFiddyMetadata.find({
+          mintAddress: tokenMints,
+        }).exec()
+      ).map((v) => {
+        return { ...v.metadata, mint: v.mintAddress };
+      });
+      const gojiraRes = (
+        await GojiraMetadata.find({
+          mintAddress: tokenMints,
+        }).exec()
+      ).map((v) => {
+        return { ...v.metadata, mint: v.mintAddress };
+      });
+
+      res.json([...landevoRes, ...teslerrRes, ...treefiddyRes, ...gojiraRes]);
     } catch (e) {
       console.log(e);
       res.status(500).send();

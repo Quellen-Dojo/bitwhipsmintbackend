@@ -25,7 +25,10 @@ const CarwashCountSchema = new Schema({
   amount: Number,
 });
 
-const NFTMetadataSchema = new Schema({
+const NFTMetadataSchema = new Schema<{
+  mintAddress: string;
+  metadata: NFTMetadata;
+}>({
   mintAddress: String,
   metadata: Object,
 });

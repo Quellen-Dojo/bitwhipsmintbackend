@@ -170,7 +170,7 @@ function verifyMetadata(metadata: typeof Metadata.prototype) {
   return valid;
 }
 
-async function getAllMetadataFromArrayOfMints(mints: string[], topLevel = false) {
+async function getMetadataFromMints(mints: string[], topLevel = false) {
   const appendTopLevelMetadata = (data: NFTMetadata, mint: string, topLevel: boolean) => {
     if (!topLevel) {
       return data;
@@ -206,7 +206,7 @@ async function getAllBitWhips(wallet: string, topLevel = false) {
     ).value
       .filter((v) => v.account.data.parsed.info.tokenAmount.uiAmount === 1)
       .map((v) => v.account.data.parsed.info.mint);
-    return await getAllMetadataFromArrayOfMints(tokenReq, topLevel);
+    return await getMetadataFromMints(tokenReq, topLevel);
   } catch (e) {
     console.log(e);
   }

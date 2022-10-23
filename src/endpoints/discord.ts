@@ -1,9 +1,23 @@
+import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { PublicKey } from "@solana/web3.js";
+import bs58 from "bs58";
 import DiscordOAuth from "discord-oauth2";
 import express from "express";
+import tweetnacl from "tweetnacl";
 
-import { currentKey } from "..";
+import { currentKey, rpcConn } from "..";
 import { whitelistSpots } from "../globals";
-import { BWDiscordLink, getNumberInModel } from "../utils/mongo";
+import {
+  BWDiscordLink,
+  BWHolderLink,
+  getNumberInModel,
+  GojiraMetadata,
+  LandevoMetadata,
+  TeslerrMetadata,
+  TreeFiddyMetadata,
+} from "../utils/mongo";
+import { DiamondVaultAPIResponse } from "../utils/types";
+import { postRequest, sendHolderMessageToDiscord } from "../utils/utils";
 
 const router = express.Router();
 
@@ -23,6 +37,176 @@ async function checkDiscordLink(discordId: string, wallet = null) {
   }
   return ret;
 }
+
+async function getNumOfBitWhipsRecheck(wallet: string) {
+  const accs = (
+    await rpcConn.getParsedTokenAccountsByOwner(new PublicKey(wallet), {
+      programId: TOKEN_PROGRAM_ID,
+    })
+  ).value;
+  const tokenMints: string[] = accs
+    .filter((v) => v.account.data.parsed.info.tokenAmount.amount > 0)
+    .map((v) => v.account.data.parsed.info.mint);
+
+  return (
+    (await LandevoMetadata.find({ mintAddress: tokenMints }).exec()).length +
+    (await TeslerrMetadata.find({ mintAddress: tokenMints }).exec()).length +
+    (await TreeFiddyMetadata.find({ mintAddress: tokenMints }).exec()).length +
+    (await GojiraMetadata.find({ mintAddress: tokenMints }).exec()).length
+  );
+}
+
+function verifySignature(msg: string, pubKey: string, signature: string) {
+  return tweetnacl.sign.detached.verify(new TextEncoder().encode(msg), bs58.decode(signature), bs58.decode(pubKey));
+}
+
+router.get("/holderstatus", async (req, res) => {
+  const { wallet, signature } = req.query;
+  if (
+    wallet &&
+    signature &&
+    verifySignature("I AM MY BITWHIP AND MY BITWHIP IS ME!", wallet as string, signature as string)
+  ) {
+    res.json({
+      valid: (await BWHolderLink.findOne({ wallet: wallet }).exec()) != null,
+    });
+  } else {
+    res.json({ valid: false });
+  }
+});
+
+router.get("/holderdiscordcheck", async (req, res) => {
+  try {
+    const oauth2 = new DiscordOAuth();
+
+    const { code } = req.query;
+
+    console.log(code);
+
+    if (code) {
+      const tokenRes = await oauth2.tokenRequest({
+        clientId: "940761522781683793",
+        redirectUri: process.env.toolVerifRedirect,
+        clientSecret: process.env.holderVerifSecret,
+        code: code as string,
+        grantType: "authorization_code",
+        scope: "identify",
+      });
+      const accessToken = tokenRes.access_token;
+      const user = await oauth2.getUser(accessToken);
+      const userId = user.id;
+      if (await BWDiscordLink.findOne({ discordId: userId }).exec()) {
+        res.json({ valid: true });
+      } else {
+        res.json({ valid: false });
+      }
+
+      res.status(500).send();
+    } else {
+      res.status(500).send();
+    }
+  } catch (e) {
+    console.log(e);
+    res.status(500).send();
+  }
+});
+
+router.get("/dolphinstatus", async (req, res) => {
+  const { wallet, signature } = req.query;
+  if (
+    wallet &&
+    signature &&
+    verifySignature("I AM MY BITWHIP AND MY BITWHIP IS ME!", wallet as string, signature as string) &&
+    (await getNumOfBitWhipsRecheck(wallet as string)) >= 5
+  ) {
+    res.json({ valid: true });
+  } else {
+    res.json({ valid: false });
+  }
+});
+
+router.post("/recheckHolders", async (req, res) => {
+  const { key } = req.body;
+  if (key === currentKey) {
+    const validRes: { [discordId: string]: number } = {};
+    const invalidRes: string[] = [];
+    let staked: DiamondVaultAPIResponse | undefined;
+    try {
+      staked = await postRequest("https://us-central1-nft-anybodies.cloudfunctions.net/API_V2_GetVaultStakerData", {
+        data: { vaultId: process.env.stakedVaultId },
+      });
+    } catch {
+      console.log("Could not load staked data");
+    }
+
+    const holderDocs = await BWHolderLink.find({}).exec();
+    for (const doc of holderDocs) {
+      let holdingNum = await getNumOfBitWhipsRecheck(doc.wallet!);
+      if (staked) {
+        const stakedEntry = staked.filter((v) => v["_id"] === doc.wallet);
+        if (stakedEntry.length > 0) {
+          holdingNum += stakedEntry[0]["Tokens"].length;
+        }
+      }
+      if (holdingNum > 0) {
+        validRes[doc.discordId!] = holdingNum;
+      } else {
+        invalidRes.push(doc.discordId!);
+        await BWHolderLink.deleteMany({ wallet: doc.wallet }).exec();
+      }
+    }
+    res.json({ valid: validRes, invalid: invalidRes });
+  } else {
+    res.status(401);
+  }
+});
+
+router.post("/submitForHolderVerif", async (req, res) => {
+  const { discordId, wallet, signature } = req.body;
+  const jsonRes: { error: boolean; success: boolean } = {
+    error: false,
+    success: false,
+  };
+  console.log(`Holder Verif: ${discordId} ${wallet} ${signature}`);
+  if (discordId && wallet && verifySignature("I AM MY BITWHIP AND MY BITWHIP IS ME!", wallet, signature)) {
+    try {
+      const walletCheckRes = await BWHolderLink.findOne({
+        discordId: discordId,
+      }).exec();
+      if (walletCheckRes) {
+        await BWHolderLink.updateMany({ discordId: discordId }, { discordId: discordId, wallet: wallet }).exec();
+      } else {
+        await BWHolderLink.create({ discordId: discordId, wallet: wallet });
+        let staked: DiamondVaultAPIResponse | undefined;
+        try {
+          staked = await postRequest("https://us-central1-nft-anybodies.cloudfunctions.net/API_V2_GetVaultStakerData", {
+            data: { vaultId: process.env.stakedVaultId },
+          });
+        } catch {
+          console.log("Could not load staked vault data");
+        }
+        let holdingNum = await getNumOfBitWhipsRecheck(wallet);
+        if (staked) {
+          const stakedEntry = staked.filter((v) => v["_id"] === wallet);
+          if (stakedEntry.length > 0) {
+            holdingNum += stakedEntry[0]["Tokens"].length;
+          }
+        }
+        if (holdingNum > 0) {
+          // Submit Request to update roles.
+          sendHolderMessageToDiscord(`${discordId} ${wallet} ${signature} ${holdingNum}`, "Holder Verification");
+        }
+      }
+      jsonRes.success = true;
+    } catch (e) {
+      console.log(e);
+      jsonRes.error = true;
+    }
+    res.json(jsonRes);
+  } else {
+    res.status(400);
+  }
+});
 
 router.get("/getlinks", async (req, res) => {
   const { key } = req.query;

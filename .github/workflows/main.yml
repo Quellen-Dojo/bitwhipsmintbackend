@@ -18,7 +18,7 @@ jobs:
         run: tsc --noEmit
 
       - name: Lint Check
-        run: yarn eslint .
+        run: yarn eslint src
 
       - name: Prettier Check
-        run: yarn prettier -c .
+        run: yarn prettier -c src

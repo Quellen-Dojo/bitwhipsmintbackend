@@ -1,5 +1,9 @@
+import { actions, NodeWallet, programs } from "@metaplex/js";
+import { Canvas, Image } from "canvas";
 import * as fs from "fs";
 import { IPFSHTTPClient } from "ipfs-http-client";
+import mergeImages from "merge-images";
+
 import {
   DirtyVersionTable,
   gojiraDirtyVerions,
@@ -9,9 +13,6 @@ import {
 } from "../constants";
 import { incrementWash, updateNFTMetadataMongo } from "../mongo";
 import { CarType, NFTMetadata } from "../types";
-import { Image, Canvas } from "canvas";
-import { NodeWallet, actions, programs } from "@metaplex/js";
-import mergeImages from "merge-images";
 const { PublicKey, Connection, Keypair } = require("@solana/web3.js");
 const bs58 = require("bs58");
 const https = require("https");
@@ -21,11 +22,7 @@ const {
   metadata: { Metadata },
 } = programs;
 
-const treasuryWallet = new NodeWallet(
-  Keypair.fromSecretKey(
-    Uint8Array.from(bs58.decode(process.env.treasuryWallet))
-  )
-);
+const treasuryWallet = new NodeWallet(Keypair.fromSecretKey(Uint8Array.from(bs58.decode(process.env.treasuryWallet))));
 
 const rpcConn = new Connection(process.env.rpcEndpoint, {
   commitment: "confirmed",
@@ -33,11 +30,7 @@ const rpcConn = new Connection(process.env.rpcEndpoint, {
 });
 const removeWeightRegex = /^([\w\s&]+)/; //bump
 
-function findFileFromTrait(
-  category: string,
-  trait_name: string,
-  carType: CarType
-) {
+function findFileFromTrait(category: string, trait_name: string, carType: CarType) {
   return new Promise((resolve, reject) => {
     fs.readdir(`./dist/layers/${carType}_layers/${category}/`, (err, files) => {
       if (err) {
@@ -51,20 +44,14 @@ function findFileFromTrait(
             return;
           }
         }
-        reject(
-          `Could not find trait {trait_type: '${category}', value: '${trait_name}'}`
-        );
+        reject(`Could not find trait {trait_type: '${category}', value: '${trait_name}'}`);
         return;
       }
     });
   });
 }
 
-function sendMessageToDiscord(
-  message: string,
-  username: string,
-  avatarImageUrl = ""
-) {
+function sendMessageToDiscord(message: string, username: string, avatarImageUrl = "") {
   const discordMsg = https.request(process.env.discordWebhook, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -74,16 +61,12 @@ function sendMessageToDiscord(
       username: username,
       avatar_url: avatarImageUrl,
       content: message,
-    })
+    }),
   );
   discordMsg.end();
 }
 
-async function getCleanVersion(
-  category: string,
-  trait_name: string,
-  carType: CarType
-) {
+async function getCleanVersion(category: string, trait_name: string, carType: CarType) {
   let cleanTable: DirtyVersionTable;
   switch (carType) {
     case "landevo":
@@ -117,26 +100,18 @@ async function getCleanVersion(
 export async function generateCleanUploadAndUpdate(
   metadata: NFTMetadata,
   carType: CarType,
-  IPFSClient: IPFSHTTPClient
+  IPFSClient: IPFSHTTPClient,
 ) {
-  let pureNewAttributes = [];
+  const pureNewAttributes = [];
   const mintAddress = metadata.mint;
   const imageSources = [];
   for (const trait of metadata["attributes"]) {
-    const cleanVersionTrait = await getCleanVersion(
-      trait["trait_type"],
-      trait["value"],
-      carType
-    );
+    const cleanVersionTrait = await getCleanVersion(trait["trait_type"], trait["value"], carType);
     imageSources.push(
       `./dist/layers/${carType}_layers/` +
         trait["trait_type"] +
         "/" +
-        (await findFileFromTrait(
-          trait["trait_type"],
-          cleanVersionTrait,
-          carType
-        ))
+        (await findFileFromTrait(trait["trait_type"], cleanVersionTrait, carType)),
     );
     pureNewAttributes.push({
       trait_type: trait["trait_type"],
@@ -167,13 +142,9 @@ export async function generateCleanUploadAndUpdate(
   metadata["attributes"] = pureNewAttributes;
   metadata["image"] = "https://ipfs.infura.io/ipfs/" + pngV0CIDStr;
 
-  sendMessageToDiscord(
-    `New Car washed! ${"https://ipfs.infura.io/ipfs/" + pngV0CIDStr}`,
-    "Car Wash Notifications"
-  );
+  sendMessageToDiscord(`New Car washed! ${"https://ipfs.infura.io/ipfs/" + pngV0CIDStr}`, "Car Wash Notifications");
 
-  metadata["properties"]["files"][0]["uri"] =
-    "https://ipfs.infura.io/ipfs/" + pngV0CIDStr;
+  metadata["properties"]["files"][0]["uri"] = "https://ipfs.infura.io/ipfs/" + pngV0CIDStr;
   delete metadata.mint;
 
   const newJSONCID = await IPFSClient.add(JSON.stringify(metadata), {
@@ -182,13 +153,9 @@ export async function generateCleanUploadAndUpdate(
   console.log(`JSON CID: ${newJSONCID.cid.toV0().toString()}`);
 
   const mintAddressPublicKey = new PublicKey(mintAddress);
-  const topLevelMetadata = await Metadata.load(
-    rpcConn,
-    await Metadata.getPDA(mintAddressPublicKey)
-  );
+  const topLevelMetadata = await Metadata.load(rpcConn, await Metadata.getPDA(mintAddressPublicKey));
   const topLevelDataData = topLevelMetadata.data.data;
-  topLevelDataData.uri =
-    "https://ipfs.infura.io/ipfs/" + newJSONCID.cid.toV0().toString();
+  topLevelDataData.uri = "https://ipfs.infura.io/ipfs/" + newJSONCID.cid.toV0().toString();
   const updateSig = await actions.updateMetadata({
     connection: rpcConn,
     wallet: treasuryWallet,

@@ -11,13 +11,17 @@ git clone https://github.com/quellen-sol/bitwhipsmintbackend.git
 
 yarn
 ```
+
 ## Run server locally
- Windows
+
+Windows
+
 ```bash
 yarn start-win
 ```
 
 Linux
+
 ```bash
 yarn start
 ```

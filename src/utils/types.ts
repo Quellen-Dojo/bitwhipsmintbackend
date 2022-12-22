@@ -22,3 +22,5 @@ export type DiamondVaultAPIResponse = {
   _id: string;
   Tokens: string[];
 }[];
+
+export type TxnTokenBalance = { uiTokenAmount: { amount: string } }[];

@@ -1,1 +1,1 @@
-docker run bitwhips-backend
+docker run bitwhips-api

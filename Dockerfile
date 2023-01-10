@@ -1,15 +1,12 @@
-FROM --platform=linux/amd64 node:16-alpine AS builder
-RUN apk update && \
-  apk upgrade && \
-  apk add \
-  git \
-  python3
+FROM node:16-alpine
+
+RUN apk add --update --no-cache git
 
 WORKDIR /usr/app
 
-COPY . .
+RUN git submodule update --init --recursive
 
-# RUN git submodule update --init --recursive
+COPY . .
 
 RUN yarn && yarn build
 

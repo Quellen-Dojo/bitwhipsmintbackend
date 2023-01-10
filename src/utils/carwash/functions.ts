@@ -1,10 +1,10 @@
 import { actions, NodeWallet, programs } from "@metaplex/js";
-import { Canvas, Image } from "canvas";
 import * as fs from "fs";
 import { IPFSHTTPClient } from "ipfs-http-client";
-import mergeImages from "merge-images";
+import sharp from "sharp";
 
 import {
+  BASE_IPFS_URL,
   DirtyVersionTable,
   gojiraDirtyVerions,
   landevoDirtyVersions,
@@ -17,6 +17,9 @@ const { PublicKey, Connection, Keypair } = require("@solana/web3.js");
 const bs58 = require("bs58");
 const https = require("https");
 require("dotenv").config();
+
+sharp.cache(false);
+sharp.concurrency(1);
 
 const {
   metadata: { Metadata },
@@ -104,29 +107,54 @@ export async function generateCleanUploadAndUpdate(
 ) {
   const pureNewAttributes = [];
   const mintAddress = metadata.mint;
-  const imageSources = [];
+  const imageSources: sharp.OverlayOptions[] = [];
   for (const trait of metadata["attributes"]) {
     const cleanVersionTrait = await getCleanVersion(trait["trait_type"], trait["value"], carType);
-    imageSources.push(
+    const imagePath =
       `./dist/layers/${carType}_layers/` +
-        trait["trait_type"] +
-        "/" +
-        (await findFileFromTrait(trait["trait_type"], cleanVersionTrait, carType)),
-    );
+      trait["trait_type"] +
+      "/" +
+      (await findFileFromTrait(trait["trait_type"], cleanVersionTrait, carType));
+    imageSources.push();
+
+    const image = fs.readFileSync(imagePath);
+
+    const sharpOption: sharp.OverlayOptions = {
+      input: image,
+      blend: "add",
+    };
+
+    imageSources.push(sharpOption);
+
     pureNewAttributes.push({
       trait_type: trait["trait_type"],
       value: cleanVersionTrait,
     });
   }
 
-  imageSources.push(`./dist/layers/${carType}_layers/Washed/Washed.png`);
+  const washedLayer = fs.readFileSync(`./dist/layers/${carType}_layers/Washed/Washed.png`);
+  const washedSource: sharp.OverlayOptions = {
+    input: washedLayer,
+    blend: "add",
+  };
 
-  const newImage = await mergeImages(imageSources, {
-    Canvas: Canvas,
-    Image: Image,
-  });
-  const imageData = newImage.replace(/^data:image\/png;base64,/, "");
-  const imageBuff = Buffer.from(imageData, "base64");
+  imageSources.push(washedSource);
+
+  const finalComposite = sharp({
+    create: {
+      width: 1000,
+      height: 1000,
+      background: {
+        r: 0,
+        g: 0,
+        b: 0,
+        alpha: 0,
+      },
+      channels: 3,
+    },
+  }).composite(imageSources);
+
+  const imageBuff = await finalComposite.png().toBuffer();
 
   // fs.writeFileSync(`./debugOutput/${mintAddress}.png`, imageBuff);
 
@@ -139,12 +167,14 @@ export async function generateCleanUploadAndUpdate(
   const pngV0CIDStr = ipfsPNGCID.cid.toV0().toString();
   console.log(`IPFS PNG CID: ${pngV0CIDStr}`);
 
+  const imageLink = `${BASE_IPFS_URL}/${pngV0CIDStr}`;
+
   metadata["attributes"] = pureNewAttributes;
-  metadata["image"] = "https://ipfs.infura.io/ipfs/" + pngV0CIDStr;
+  metadata["image"] = imageLink;
 
-  sendMessageToDiscord(`New Car washed! ${"https://ipfs.infura.io/ipfs/" + pngV0CIDStr}`, "Car Wash Notifications");
+  sendMessageToDiscord(`New Car washed! ${imageLink}`, "Car Wash Notifications");
 
-  metadata["properties"]["files"][0]["uri"] = "https://ipfs.infura.io/ipfs/" + pngV0CIDStr;
+  metadata["properties"]["files"][0]["uri"] = imageLink;
   delete metadata.mint;
 
   const newJSONCID = await IPFSClient.add(JSON.stringify(metadata), {
@@ -155,7 +185,7 @@ export async function generateCleanUploadAndUpdate(
   const mintAddressPublicKey = new PublicKey(mintAddress);
   const topLevelMetadata = await Metadata.load(rpcConn, await Metadata.getPDA(mintAddressPublicKey));
   const topLevelDataData = topLevelMetadata.data.data;
-  topLevelDataData.uri = "https://ipfs.infura.io/ipfs/" + newJSONCID.cid.toV0().toString();
+  topLevelDataData.uri = `${BASE_IPFS_URL}/${newJSONCID.cid.toV0().toString()}`;
   const updateSig = await actions.updateMetadata({
     connection: rpcConn,
     wallet: treasuryWallet,

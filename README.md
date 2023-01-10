@@ -14,14 +14,6 @@ yarn
 
 ## Run server locally
 
-Windows
-
-```bash
-yarn start-win
-```
-
-Linux
-
 ```bash
 yarn start
 ```

@@ -14,6 +14,14 @@ yarn
 
 ## Run server locally
 
+### Build first
+
 ```bash
-yarn start
+./build.sh
+```
+
+### Then run
+
+```
+./run.sh
 ```

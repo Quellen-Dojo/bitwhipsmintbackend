@@ -4,9 +4,9 @@ RUN apk add --update --no-cache git
 
 WORKDIR /usr/app
 
-RUN git submodule update --init --recursive
-
 COPY . .
+
+RUN git submodule update --init --recursive
 
 RUN yarn && yarn build
 

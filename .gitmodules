@@ -1,3 +1,0 @@
-[submodule "src/layers"]
-	path = src/layers
-	url = git@github.com:quellen-sol/bitwhips-layers-private.git

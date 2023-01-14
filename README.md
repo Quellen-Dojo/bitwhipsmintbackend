@@ -14,14 +14,14 @@ yarn
 
 ## Run server locally
 
-Windows
+### Build first
 
 ```bash
-yarn start-win
+./build.sh
 ```
 
-Linux
+### Then run
 
-```bash
-yarn start
+```
+./run.sh
 ```

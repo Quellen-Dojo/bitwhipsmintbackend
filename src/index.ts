@@ -11,8 +11,11 @@ require("dotenv").config();
 const cors = require("cors");
 const app = express();
 
+// Middleware
 app.use(cors());
 app.use(express.json());
+
+// Routes
 app.use(discordRoutes);
 app.use(miscRoutes);
 app.use(nftRoutes);

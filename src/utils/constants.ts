@@ -141,3 +141,5 @@ export type DirtyVersionTable = {
     [cleanTrait: string]: string[];
   };
 };
+
+export const BASE_IPFS_URL = "https://thesolden.infura-ipfs.io/ipfs";

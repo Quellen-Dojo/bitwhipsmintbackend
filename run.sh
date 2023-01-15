@@ -1,1 +1,1 @@
-docker run bitwhips-api
+docker compose up

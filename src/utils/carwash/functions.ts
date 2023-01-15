@@ -1,5 +1,8 @@
 import { actions, NodeWallet, programs } from "@metaplex/js";
-import * as fs from "fs";
+import bs58 from "bs58";
+import { fetch as cfetch } from "cross-fetch";
+import dotenv from "dotenv";
+import { https } from "follow-redirects";
 import { IPFSHTTPClient } from "ipfs-http-client";
 import sharp from "sharp";
 
@@ -13,10 +16,10 @@ import {
 } from "../constants";
 import { incrementWash, updateNFTMetadataMongo } from "../mongo";
 import { CarType, NFTMetadata } from "../types";
+
+dotenv.config();
+
 const { PublicKey, Connection, Keypair } = require("@solana/web3.js");
-const bs58 = require("bs58");
-const https = require("https");
-require("dotenv").config();
 
 sharp.cache(false);
 sharp.concurrency(1);
@@ -25,37 +28,19 @@ const {
   metadata: { Metadata },
 } = programs;
 
-const treasuryWallet = new NodeWallet(Keypair.fromSecretKey(Uint8Array.from(bs58.decode(process.env.treasuryWallet))));
+const TARGET_IMAGE_SIZE = 1000; // 1000x1000
+
+const treasuryWallet = new NodeWallet(Keypair.fromSecretKey(Uint8Array.from(bs58.decode(process.env.treasuryWallet!))));
+
+const AWS_URL = process.env.AWS_LAYER_URL;
 
 const rpcConn = new Connection(process.env.rpcEndpoint, {
   commitment: "confirmed",
   confirmTransactionInitialTimeout: 100000,
 });
-const removeWeightRegex = /^([\w\s&]+)/; //bump
-
-function findFileFromTrait(category: string, trait_name: string, carType: CarType) {
-  return new Promise((resolve, reject) => {
-    fs.readdir(`./dist/layers/${carType}_layers/${category}/`, (err, files) => {
-      if (err) {
-        reject(`Error locating category ${category}`);
-      } else {
-        for (const file of files) {
-          const matchRes = file.match(removeWeightRegex);
-          if (matchRes && matchRes[0] === trait_name) {
-            console.log(file);
-            resolve(file);
-            return;
-          }
-        }
-        reject(`Could not find trait {trait_type: '${category}', value: '${trait_name}'}`);
-        return;
-      }
-    });
-  });
-}
 
 function sendMessageToDiscord(message: string, username: string, avatarImageUrl = "") {
-  const discordMsg = https.request(process.env.discordWebhook, {
+  const discordMsg = https.request(process.env.discordWebhook!, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
   });
@@ -100,6 +85,14 @@ async function getCleanVersion(category: string, trait_name: string, carType: Ca
   return trait_name;
 }
 
+const formatStringForAWS = (item: string) => item.replace(" ", "+");
+
+const fetchImage = async (url: string) => {
+  const req = await cfetch(url);
+  const arrayBuff = await req.arrayBuffer();
+  return Buffer.from(arrayBuff);
+};
+
 export async function generateCleanUploadAndUpdate(
   metadata: NFTMetadata,
   carType: CarType,
@@ -110,17 +103,16 @@ export async function generateCleanUploadAndUpdate(
   const imageSources: sharp.OverlayOptions[] = [];
   for (const trait of metadata["attributes"]) {
     const cleanVersionTrait = await getCleanVersion(trait["trait_type"], trait["value"], carType);
-    const imagePath =
-      `./dist/layers/${carType}_layers/` +
-      trait["trait_type"] +
-      "/" +
-      (await findFileFromTrait(trait["trait_type"], cleanVersionTrait, carType));
-    imageSources.push();
 
-    const image = fs.readFileSync(imagePath);
+    const imageUrl = `${AWS_URL}/${carType}_layers/${formatStringForAWS(trait.trait_type)}/${formatStringForAWS(
+      cleanVersionTrait,
+    )}.png`;
+
+    const imageRes = await fetchImage(imageUrl);
+    const imageSharp = await sharp(imageRes).resize({ height: TARGET_IMAGE_SIZE, width: TARGET_IMAGE_SIZE }).toBuffer();
 
     const sharpOption: sharp.OverlayOptions = {
-      input: image,
+      input: imageSharp,
       blend: "add",
     };
 
@@ -132,7 +124,7 @@ export async function generateCleanUploadAndUpdate(
     });
   }
 
-  const washedLayer = fs.readFileSync(`./dist/layers/${carType}_layers/Washed/Washed.png`);
+  const washedLayer = await fetchImage(`${AWS_URL}/${carType}_layers/Washed/Washed.png`);
   const washedSource: sharp.OverlayOptions = {
     input: washedLayer,
     blend: "add",
@@ -142,8 +134,8 @@ export async function generateCleanUploadAndUpdate(
 
   const finalComposite = sharp({
     create: {
-      width: 1000,
-      height: 1000,
+      width: TARGET_IMAGE_SIZE,
+      height: TARGET_IMAGE_SIZE,
       background: {
         r: 0,
         g: 0,

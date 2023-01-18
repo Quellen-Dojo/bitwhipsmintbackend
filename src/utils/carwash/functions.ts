@@ -127,7 +127,7 @@ export async function generateCleanUploadAndUpdate(
   const washedLayer = await fetchImage(`${AWS_URL}/${carType}_layers/Washed/Washed.png`);
   const washedSource: sharp.OverlayOptions = {
     input: washedLayer,
-    blend: "add",
+    blend: "over",
   };
 
   imageSources.push(washedSource);

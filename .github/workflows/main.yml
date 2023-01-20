@@ -1,0 +1,24 @@
+name: CI Checks
+
+on:
+  pull_request:
+    branches: ["master", "develop"]
+
+jobs:
+  main-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Dependencies
+        run: yarn
+
+      - name: Type Check
+        run: tsc --noEmit
+
+      - name: Lint Check
+        run: yarn eslint .
+
+      - name: Prettier Check
+        run: yarn prettier -c .

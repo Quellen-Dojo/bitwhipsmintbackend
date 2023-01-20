@@ -1,0 +1,5 @@
+services:
+  bitwhips-api:
+    image: bitwhips-api
+    ports:
+      - "3002:3002"

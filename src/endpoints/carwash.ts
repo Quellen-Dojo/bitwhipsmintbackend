@@ -1,6 +1,6 @@
 import { Router } from "express";
 
-import { carwashCountDoc, IPFSClient, rpcConn } from "..";
+import { carwashCountDoc, rpcConn } from "..";
 import { generateCleanUploadAndUpdate } from "../utils/carwash/functions";
 import { CarwashCount } from "../utils/mongo";
 import { TxnTokenBalance } from "../utils/types";
@@ -54,7 +54,7 @@ router.post("/processcarwash", async (req, res) => {
     ) {
       //update metadata here!
       try {
-        await generateCleanUploadAndUpdate(tokenMeta, type, IPFSClient);
+        await generateCleanUploadAndUpdate(tokenMeta, type);
         res.status(200).send();
       } catch (generationError) {
         console.log(generationError);

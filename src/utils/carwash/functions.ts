@@ -3,11 +3,9 @@ import bs58 from "bs58";
 import { fetch as cfetch } from "cross-fetch";
 import dotenv from "dotenv";
 import { https } from "follow-redirects";
-import { IPFSHTTPClient } from "ipfs-http-client";
 import sharp from "sharp";
 
 import {
-  BASE_IPFS_URL,
   DirtyVersionTable,
   gojiraDirtyVerions,
   landevoDirtyVersions,
@@ -16,6 +14,7 @@ import {
 } from "../constants";
 import { incrementWash, updateNFTMetadataMongo } from "../mongo";
 import { CarType, NFTMetadata } from "../types";
+import { uploadFileToInternet } from "../utils";
 
 dotenv.config();
 
@@ -93,11 +92,7 @@ const fetchImage = async (url: string) => {
   return Buffer.from(arrayBuff);
 };
 
-export async function generateCleanUploadAndUpdate(
-  metadata: NFTMetadata,
-  carType: CarType,
-  IPFSClient: IPFSHTTPClient,
-) {
+export async function generateCleanUploadAndUpdate(metadata: NFTMetadata, carType: CarType) {
   const pureNewAttributes = [];
   const mintAddress = metadata.mint;
   const imageSources: sharp.OverlayOptions[] = [];
@@ -155,11 +150,7 @@ export async function generateCleanUploadAndUpdate(
     value: `Ticket Number: ${await incrementWash()}`,
   });
 
-  const ipfsPNGCID = await IPFSClient.add(imageBuff, { pin: true });
-  const pngV0CIDStr = ipfsPNGCID.cid.toV0().toString();
-  console.log(`IPFS PNG CID: ${pngV0CIDStr}`);
-
-  const imageLink = `${BASE_IPFS_URL}/${pngV0CIDStr}`;
+  const imageLink = await uploadFileToInternet(imageBuff, "image/png");
 
   metadata["attributes"] = pureNewAttributes;
   metadata["image"] = imageLink;
@@ -169,15 +160,10 @@ export async function generateCleanUploadAndUpdate(
   metadata["properties"]["files"][0]["uri"] = imageLink;
   delete metadata.mint;
 
-  const newJSONCID = await IPFSClient.add(JSON.stringify(metadata), {
-    pin: true,
-  });
-  console.log(`JSON CID: ${newJSONCID.cid.toV0().toString()}`);
-
   const mintAddressPublicKey = new PublicKey(mintAddress);
   const topLevelMetadata = await Metadata.load(rpcConn, await Metadata.getPDA(mintAddressPublicKey));
   const topLevelDataData = topLevelMetadata.data.data;
-  topLevelDataData.uri = `${BASE_IPFS_URL}/${newJSONCID.cid.toV0().toString()}`;
+  topLevelDataData.uri = await uploadFileToInternet(JSON.stringify(metadata), "application/json");
   const updateSig = await actions.updateMetadata({
     connection: rpcConn,
     wallet: treasuryWallet,

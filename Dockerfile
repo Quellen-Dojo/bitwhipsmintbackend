@@ -4,6 +4,7 @@ WORKDIR /usr/app
 
 COPY . .
 
-RUN yarn && yarn build
+RUN yarn install --frozen-lockfile
+RUN yarn build
 
 CMD ["node", "dist/index.js"]

@@ -1,6 +1,6 @@
 import { Connection } from "@solana/web3.js";
 import express from "express";
-import * as IPFS from "ipfs-http-client";
+import { NFTStorage } from "nft.storage";
 
 import carwashRoutes from "./endpoints/carwash";
 import discordRoutes from "./endpoints/discord";
@@ -23,18 +23,9 @@ app.use(carwashRoutes);
 
 export const carwashCountDoc = process.env.carwashCountDoc;
 export const currentKey = process.env.accessKey;
+export const NFT_STORAGE_KEY = process.env.NFT_STORAGE_KEY!;
 
-export const IPFSClient = IPFS.create({
-  host: "ipfs.infura.io",
-  port: 5001,
-  protocol: "https",
-  headers: {
-    authorization:
-      "Basic " +
-      Buffer.from(process.env.infuraIPFSProjectID + ":" + process.env.infuraIPFSProjectSecret).toString("base64"),
-  },
-  apiPath: "/api/v0",
-});
+export const nftStorage = new NFTStorage({ token: NFT_STORAGE_KEY });
 
 export const rpcConn = new Connection(process.env.rpcEndpoint!, {
   commitment: "confirmed",

@@ -2,7 +2,7 @@ import { programs } from "@metaplex/js";
 import { PublicKey } from "@solana/web3.js";
 import { https } from "follow-redirects";
 
-import { rpcConn } from "..";
+import { nftStorage, rpcConn } from "..";
 import { NFTMetadata, TxnTokenBalance } from "./types";
 
 const {
@@ -181,3 +181,18 @@ export function validateTxnTransferAmounts(
     lamports;
   return toSent && fromSent;
 }
+
+type HTTPFileType = "image/png" | "application/json";
+
+/**
+ * Takes data and uploads to our currently used system for reliable storage.
+ * Currently: NFT.Storage
+ */
+export const uploadFileToInternet = async (data: string | Buffer, dataType: HTTPFileType): Promise<string> => {
+  // Make blob of data
+  const blob = new Blob([data], { type: dataType });
+  // Upload to NFT.Storage
+  const cid = await nftStorage.storeBlob(blob);
+  // Return IPFS Link:
+  return "https://nftstorage.link/ipfs/" + cid;
+};
